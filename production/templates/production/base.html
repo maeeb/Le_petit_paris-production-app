@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Titre dynamique pour les templates enfants -->
+    <title>{% block title %}Le Petit Paris - Suivi Production{% endblock %}</title>
+
+    <!-- Bootstrap CSS (dernière version stable) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome (dernière version stable) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Styles personnalisés -->
+    <style>
+        /* Thème Rouge Tomate */
+        :root {
+            --tomato-red: #DC143C;
+            --tomato-dark: #B22222;
+            --tomato-light: #FF6347;
+            --tomato-bg: #FFF5F5;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--tomato-bg) 0%, #FFEBEE 100%);
+            min-height: 100vh;
+        }
+
+        /* Navbar Rouge Tomate */
+        .navbar-dark.bg-tomato {
+            background: linear-gradient(45deg, var(--tomato-red), var(--tomato-light)) !important;
+            box-shadow: 0 2px 10px rgba(220, 20, 60, 0.3);
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+
+        .navbar-brand::before {
+            content: "🍅";
+            margin-right: 8px;
+            font-size: 1.8rem;
+        }
+
+        /* Cards avec thème rouge */
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(220, 20, 60, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(220, 20, 60, 0.2);
+        }
+
+        .card-header {
+            border-radius: 15px 15px 0 0 !important;
+            border-bottom: 2px solid var(--tomato-light);
+        }
+
+        /* Stats cards */
+        .stats-card {
+            transition: all 0.3s ease;
+            border-radius: 15px;
+            background: linear-gradient(45deg, var(--tomato-red), var(--tomato-light));
+            color: white !important;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 10px 40px rgba(220, 20, 60, 0.4);
+        }
+
+        .stats-card.bg-success {
+            background: linear-gradient(45deg, #28a745, #20c997) !important;
+        }
+
+        .stats-card.bg-warning {
+            background: linear-gradient(45deg, #ffc107, #fd7e14) !important;
+        }
+
+        .stats-card.bg-danger {
+            background: linear-gradient(45deg, var(--tomato-red), var(--tomato-dark)) !important;
+        }
+
+        .stats-card.bg-info {
+            background: linear-gradient(45deg, #17a2b8, #6f42c1) !important;
+        }
+
+        /* Boutons */
+        .btn-primary {
+            background: linear-gradient(45deg, var(--tomato-red), var(--tomato-light));
+            border: none;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(45deg, var(--tomato-dark), var(--tomato-red));
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 20, 60, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            border: none;
+            border-radius: 10px;
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(45deg, #218838, #1ea085);
+            transform: translateY(-2px);
+        }
+
+        /* Alertes avec animation */
+        .alert-danger {
+            background: linear-gradient(45deg, var(--tomato-light), var(--tomato-red));
+            border: none;
+            color: white;
+            animation: pulse 2s infinite;
+            border-radius: 10px;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.02); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* Tables */
+        .table th {
+            background: linear-gradient(45deg, var(--tomato-red), var(--tomato-light));
+            color: white;
+            border: none;
+        }
+
+        .table-striped > tbody > tr:nth-of-type(odd) > td {
+            background-color: rgba(220, 20, 60, 0.05);
+        }
+
+        /* Badges */
+        .badge.bg-primary {
+            background: var(--tomato-red) !important;
+        }
+
+        /* Footer */
+        .footer-tomato {
+            background: linear-gradient(45deg, var(--tomato-dark), var(--tomato-red));
+            color: white;
+            padding: 20px 0;
+            margin-top: 50px;
+        }
+    </style>
+
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-tomato">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'admin_dashboard' %}">Le Petit Paris</a>
+
+            {% if user.is_authenticated %}
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3">
+                    <i class="fas fa-user-circle"></i> {{ user.username }}
+                    {% if user.is_superuser %}
+                        <span class="badge bg-warning ms-1">Admin</span>
+                    {% else %}
+                        <span class="badge bg-success ms-1">Opérateur</span>
+                    {% endif %}
+                </span>
+                <a class="btn btn-outline-light btn-sm" href="{% url 'logout' %}">
+                    <i class="fas fa-sign-out-alt"></i> Déconnexion
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <main class="container my-4">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer-tomato text-center">
+        <div class="container">
+            <p class="mb-0">🍅 <strong>Le Petit Paris</strong> - Industrie de Tomates - Production 24/7</p>
+            <small>Système de Suivi de Production en Temps Réel</small>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS Bundle (dernière version) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- jQuery (optionnel) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

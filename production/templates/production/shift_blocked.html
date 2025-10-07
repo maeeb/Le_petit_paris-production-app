@@ -1,0 +1,257 @@
+<!-- production/templates/production/shift_blocked.html -->
+{% extends 'production/base.html' %}
+{% load static %}
+
+{% block title %}Accès Bloqué - Le Petit Paris{% endblock %}
+
+{% block extra_css %}
+<style>
+    .blocked-container {
+        min-height: 80vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .blocked-card {
+        background: white;
+        border-radius: 20px;
+        padding: 3rem;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        max-width: 600px;
+        width: 90%;
+    }
+    .blocked-icon {
+        color: #dc3545;
+        font-size: 5rem;
+        margin-bottom: 1rem;
+    }
+    .current-time {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #007bff;
+        margin: 1rem 0;
+    }
+    .shift-info {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+    }
+    .pulse {
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+    .debug-info {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 5px;
+        padding: 10px;
+        margin: 10px 0;
+        font-family: monospace;
+        font-size: 0.9em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="blocked-container">
+    <div class="blocked-card">
+        <div class="blocked-icon pulse">
+            <i class="fas fa-lock"></i>
+        </div>
+        
+        <h1 class="text-danger mb-3">Accès Bloqué</h1>
+        <p class="lead text-muted">Vous n'êtes pas autorisé à accéder au système en ce moment</p>
+        
+        <div class="current-time" id="current-time">
+            {{ current_hour }}h00
+        </div>
+        
+        <!-- Debug info (à retirer en production) -->
+        <div class="debug-info" id="debug-info">
+            <strong>Debug Info:</strong><br>
+            Heure actuelle: <span id="debug-hour"></span><br>
+            Équipe utilisateur: "<span id="debug-shift"></span>"<br>
+            Peut accéder: <span id="debug-access"></span><br>
+            Status: <span id="debug-status">Vérification...</span>
+        </div>
+        
+        <div class="shift-info">
+            <h4 class="text-primary">
+                <i class="fas fa-users"></i> Équipe Actuellement en Service
+            </h4>
+            <p class="fs-3 mb-0 text-success">{{ current_shift }}</p>
+        </div>
+        
+        {% if user_shift %}
+        <div class="shift-info">
+            <h5 class="text-info">
+                <i class="fas fa-user"></i> Votre Équipe Assignée
+            </h5>
+            <p class="fs-4 mb-2">{{ user_shift }}</p>
+            
+            <div class="alert alert-info">
+                <i class="fas fa-clock"></i>
+                <strong>Votre prochain accès :</strong> {{ user_next_access }}
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="mt-4">
+            <h6 class="text-muted">Horaires des Équipes :</h6>
+            <div class="row text-center mt-3">
+                <div class="col-md-4">
+                    <div class="badge bg-warning text-dark fs-6 p-2 mb-2">
+                        <i class="fas fa-sun"></i><br>
+                        Matin<br>
+                        6h - 14h
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="badge bg-primary fs-6 p-2 mb-2">
+                        <i class="fas fa-clock"></i><br>
+                        Après-midi<br>
+                        14h - 22h
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="badge bg-dark fs-6 p-2 mb-2">
+                        <i class="fas fa-moon"></i><br>
+                        Nuit<br>
+                        22h - 6h
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <hr class="my-4">
+        
+        <div class="d-flex justify-content-center gap-3">
+            <a href="{% url 'logout' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-sign-out-alt"></i> Se Déconnecter
+            </a>
+            <button onclick="location.reload()" class="btn btn-primary">
+                <i class="fas fa-sync-alt"></i> Actualiser
+            </button>
+        </div>
+        
+        <div class="mt-4">
+            <small class="text-muted">
+                <i class="fas fa-info-circle"></i>
+                Cette page se rafraîchira automatiquement toutes les 60 secondes
+            </small>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+console.log("Script de vérification d'accès démarré");
+
+// Récupérer l'horaire utilisateur depuis Django
+const userShift = "{{ user.userprofile.horaire_equipe|default:'' }}";
+console.log("Équipe utilisateur récupérée:", userShift);
+
+// Mise à jour de l'heure en temps réel et vérification d'accès
+function updateTime() {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const seconds = now.getSeconds().toString().padStart(2, '0');
+    
+    // Mettre à jour l'affichage de l'heure
+    document.getElementById('current-time').textContent = `${hours}:${minutes}:${seconds}`;
+    
+    // Vérifier l'accès
+    const currentHour = now.getHours();
+    let canAccess = false;
+    let debugStatus = "Vérification en cours...";
+    
+    // VÉRIFICATION CORRIGÉE avec tous les formats possibles
+    if (userShift === '06-14' && currentHour >= 6 && currentHour < 14) {
+        canAccess = true;
+        debugStatus = "Équipe matin OK (06-14)";
+    } else if (userShift === '6-14' && currentHour >= 6 && currentHour < 14) {
+        canAccess = true;
+        debugStatus = "Équipe matin OK (6-14)";
+    } else if (userShift === 'Matin' && currentHour >= 6 && currentHour < 14) {
+        canAccess = true;
+        debugStatus = "Équipe matin OK (texte)";
+    } else if (userShift === '14-22' && currentHour >= 14 && currentHour < 22) {
+        canAccess = true;
+        debugStatus = "Équipe après-midi OK";
+    } else if (userShift === 'Après-midi' && currentHour >= 14 && currentHour < 22) {
+        canAccess = true;
+        debugStatus = "Équipe après-midi OK (texte)";
+    } else if (userShift === '22-06' && (currentHour >= 22 || currentHour < 6)) {
+        canAccess = true;
+        debugStatus = "Équipe nuit OK (22-06)";
+    } else if (userShift === '22-6' && (currentHour >= 22 || currentHour < 6)) {
+        canAccess = true;
+        debugStatus = "Équipe nuit OK (22-6)";
+    } else if (userShift === 'Nuit' && (currentHour >= 22 || currentHour < 6)) {
+        canAccess = true;
+        debugStatus = "Équipe nuit OK (texte)";
+    } else {
+        debugStatus = `Aucune correspondance. Format: "${userShift}", Heure: ${currentHour}h`;
+    }
+    
+    // Mettre à jour les informations de debug
+    document.getElementById('debug-hour').textContent = currentHour;
+    document.getElementById('debug-shift').textContent = userShift;
+    document.getElementById('debug-access').textContent = canAccess ? 'OUI' : 'NON';
+    document.getElementById('debug-status').textContent = debugStatus;
+    
+    // Console logs pour debugging
+    console.log(`[${hours}:${minutes}:${seconds}] Heure: ${currentHour}, Équipe: "${userShift}", Accès: ${canAccess}`);
+    
+    if (canAccess) {
+        console.log("🟢 ACCÈS AUTORISÉ - Redirection vers le dashboard...");
+        // Petite pause pour voir le changement
+        setTimeout(() => {
+            window.location.href = "{% url 'operator_dashboard' %}";
+        }, 1000);
+    } else {
+        console.log("🔴 Accès refusé pour le moment");
+    }
+}
+
+// Démarrer la vérification
+console.log("Démarrage des vérifications...");
+updateTime(); // Appel immédiat
+setInterval(updateTime, 1000); // Puis toutes les secondes
+
+// Actualiser la page toutes les 60 secondes (backup)
+setInterval(() => {
+    console.log("Actualisation automatique de la page...");
+    location.reload();
+}, 60000);
+
+// Message de bienvenue selon l'heure
+document.addEventListener('DOMContentLoaded', function() {
+    const currentHour = new Date().getHours();
+    let greeting = "";
+    
+    if (currentHour >= 6 && currentHour < 12) {
+        greeting = "Bonjour ! ";
+    } else if (currentHour >= 12 && currentHour < 18) {
+        greeting = "Bon après-midi ! ";
+    } else {
+        greeting = "Bonsoir ! ";
+    }
+    
+    console.log(greeting + "Page de blocage d'accès chargée");
+    console.log("Informations utilisateur:", {
+        shift: userShift,
+        hour: currentHour
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,607 @@
+{% extends 'production/base.html' %}
+
+{% block title %}Nouveau Relevé - Le Petit Paris{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-clipboard-list"></i> 
+                        Nouveau Relevé de Production
+                    </h3>
+                    <small>Ligne de production - {{ user.username }} | {{ "now"|date:"d/m/Y H:i" }}</small>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Affichage des messages -->
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form method="post" id="productionForm" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Informations de base -->
+                        <div class="card mb-3">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0"><i class="fas fa-info-circle"></i> Informations de Base</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.ligne_production.id_for_label }}" class="form-label">
+                                            <i class="fas fa-cogs"></i> Ligne de Production *
+                                        </label>
+                                        {{ form.ligne_production }}
+                                        {% if form.ligne_production.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.ligne_production.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.produit.id_for_label }}" class="form-label">
+                                            <i class="fas fa-box"></i> Produit *
+                                        </label>
+                                        {{ form.produit }}
+                                        {% if form.produit.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.produit.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Production -->
+                        <div class="card mb-3">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0"><i class="fas fa-industry"></i> Données de Production</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label for="{{ form.palettes_produites.id_for_label }}" class="form-label">
+                                            <i class="fas fa-pallet"></i> Palettes Produites *
+                                        </label>
+                                        {{ form.palettes_produites }}
+                                        <small class="form-text text-muted">Nombre total de palettes</small>
+                                        {% if form.palettes_produites.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.palettes_produites.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <!-- Palettes Non Conformes -->
+<div class="card mb-3">
+    <div class="card-header bg-warning text-dark">
+        <h6 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Palettes Non Conformes</h6>
+        <small>Indiquez le nombre de palettes non conformes et la cause</small>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <!-- Nombre de palettes non conformes -->
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.palettes_non_conformes.id_for_label }}" class="form-label">
+                    <i class="fas fa-box-open text-warning"></i> Nombre de Palettes Non Conformes
+                </label>
+                {{ form.palettes_non_conformes }}
+                <small class="form-text text-muted">Palettes avec défauts qualité</small>
+                {% if form.palettes_non_conformes.errors %}
+                    <div class="invalid-feedback d-block">{{ form.palettes_non_conformes.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Cause des non conformités -->
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.cause_non_conformite.id_for_label }}" class="form-label">
+                    <i class="fas fa-comment-alt"></i> Cause des Non-Conformités *
+                </label>
+                {{ form.cause_non_conformite }}
+                <div class="form-text">
+                    Exemples : Défaut d'emballage, Produit abîmé, Erreur de ligne, Mauvais contrôle qualité...
+                </div>
+                {% if form.cause_non_conformite.errors %}
+                    <div class="invalid-feedback d-block">{{ form.cause_non_conformite.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+                                    
+                                    <div class="col-md-4 mb-3">
+                                        <label for="{{ form.dechets_boites.id_for_label }}" class="form-label">
+                                            <i class="fas fa-trash"></i> Déchets (boîtes)
+                                        </label>
+                                        {{ form.dechets_boites }}
+                                        <small class="form-text text-muted">Poids en kg</small>
+                                        {% if form.dechets_boites.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.dechets_boites.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                
+                                <!-- Indicateur de conformité en temps réel -->
+                                <div class="row">
+                                    <div class="col-12">
+                                        <div class="alert alert-info" id="conformityAlert" style="display: none;">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <strong>Taux de Conformité: <span id="conformityRate">100</span>%</strong>
+                                                    <div class="small">
+                                                        Conformes: <span id="conformCount">0</span> | 
+                                                        Non conformes: <span id="nonConformCount">0</span>
+                                                    </div>
+                                                </div>
+                                                <div class="text-end">
+                                                    <i id="conformityIcon" class="fas fa-check-circle fa-2x text-success"></i>
+                                                </div>
+                                            </div>
+                                            <div class="progress mt-2" style="height: 8px;">
+                                                <div class="progress-bar" id="conformityBar" style="width: 100%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Objectifs de production (nouveau) -->
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <div class="card border-light">
+                                            <div class="card-body p-2">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-target"></i> 
+                                                    Objectif journalier: <span class="fw-bold">80 palettes</span> | 
+                                                    Taux minimum: <span class="fw-bold">95%</span>
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Arrêts -->
+                        <div class="card mb-3">
+                            <div class="card-header bg-warning text-dark">
+                                <h6 class="mb-0"><i class="fas fa-pause"></i> Arrêts de Production</h6>
+                                <small>Noter même les petits arrêts (pause, nettoyage, panne...)</small>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.duree_arret_minutes.id_for_label }}" class="form-label">
+                                            <i class="fas fa-clock"></i> Durée d'Arrêt (minutes)
+                                        </label>
+                                        <div class="input-group">
+                                            {{ form.duree_arret_minutes }}
+                                            <span class="input-group-text">min</span>
+                                        </div>
+                                        <div id="arretHelp" class="form-text">
+                                            <i class="fas fa-info-circle"></i> Convertisseur: 
+                                            <button type="button" class="btn btn-link btn-sm p-0" onclick="convertTime(15)">15min</button>,
+                                            <button type="button" class="btn btn-link btn-sm p-0" onclick="convertTime(30)">30min</button>,
+                                            <button type="button" class="btn btn-link btn-sm p-0" onclick="convertTime(60)">1h</button>
+                                        </div>
+                                        {% if form.duree_arret_minutes.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.duree_arret_minutes.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div id="arretSummary" class="alert alert-light" style="display: none;">
+                                            <small>
+                                                <strong>Impact:</strong><br>
+                                                Temps d'arrêt: <span id="arretTime">0</span> min<br>
+                                                <span id="arretImpact" class="text-muted"></span>
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row" id="causeArretSection" style="display: none;">
+                                    <div class="col-12 mb-3">
+                                        <label for="{{ form.cause_arret.id_for_label }}" class="form-label">
+                                            <i class="fas fa-comment-alt"></i> Cause de l'Arrêt *
+                                        </label>
+                                        {{ form.cause_arret }}
+                                        <div class="form-text">
+                                            Exemples: Panne mécanique, Nettoyage, Changement produit, Pause équipe, Maintenance préventive
+                                        </div>
+                                        {% if form.cause_arret.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.cause_arret.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Commentaires -->
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0"><i class="fas fa-comment"></i> Observations & Commentaires</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="{{ form.commentaires.id_for_label }}" class="form-label">
+                                        <i class="fas fa-edit"></i> Commentaires additionnels
+                                    </label>
+                                    {{ form.commentaires }}
+                                    <div class="form-text">
+                                        Remarques sur la qualité, incidents, améliorations suggérées...
+                                    </div>
+                                    {% if form.commentaires.errors %}
+                                        <div class="invalid-feedback d-block">{{ form.commentaires.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Validation des erreurs générales -->
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-circle"></i>
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+
+                        <!-- Résumé avant validation (nouveau) -->
+                        <div class="card mb-3" id="summaryCard" style="display: none;">
+                            <div class="card-header bg-secondary text-white">
+                                <h6 class="mb-0"><i class="fas fa-clipboard-check"></i> Résumé du Relevé</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-md-3">
+                                        <div class="h4 text-primary mb-0" id="summaryPalettes">0</div>
+                                        <small>Palettes</small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="h4 mb-0" id="summaryConformity">100%</div>
+                                        <small>Conformité</small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="h4 text-warning mb-0" id="summaryArrets">0</div>
+                                        <small>Minutes d'arrêt</small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="h4 text-secondary mb-0" id="summaryDechets">0</div>
+                                        <small>Kg déchets</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Boutons d'action -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{% url 'operator_dashboard' %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Retour
+                            </a>
+                            <div>
+                                <button type="button" class="btn btn-outline-primary me-2" id="previewBtn">
+                                    <i class="fas fa-eye"></i> Aperçu
+                                </button>
+                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                    <i class="fas fa-save"></i> Enregistrer le Relevé
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation (nouveau) -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-question-circle"></i> Confirmer l'enregistrement</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="confirmContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="confirmSave">
+                    <i class="fas fa-save"></i> Confirmer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dureeArretInput = document.getElementById('id_duree_arret_minutes');
+    const causeArretSection = document.getElementById('causeArretSection');
+    const causeArretTextarea = document.getElementById('id_cause_arret');
+    
+    const palettesProduites = document.getElementById('id_palettes_produites');
+    const palettesNonConformes = document.getElementById('id_palettes_non_conformes');
+    const dechetsBoites = document.getElementById('id_dechets_boites');
+    
+    const conformityAlert = document.getElementById('conformityAlert');
+    const conformityRate = document.getElementById('conformityRate');
+    const conformityBar = document.getElementById('conformityBar');
+    const conformityIcon = document.getElementById('conformityIcon');
+    const conformCount = document.getElementById('conformCount');
+    const nonConformCount = document.getElementById('nonConformCount');
+    
+    const arretSummary = document.getElementById('arretSummary');
+    const arretTime = document.getElementById('arretTime');
+    const arretImpact = document.getElementById('arretImpact');
+    
+    const summaryCard = document.getElementById('summaryCard');
+    const previewBtn = document.getElementById('previewBtn');
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    
+    // Gestion des arrêts améliorée
+    function toggleCauseArret() {
+        const duree = parseInt(dureeArretInput.value) || 0;
+        
+        if (duree > 0) {
+            causeArretSection.style.display = 'block';
+            causeArretTextarea.required = true;
+            arretSummary.style.display = 'block';
+            arretTime.textContent = duree;
+            
+            // Calcul de l'impact
+            if (duree <= 15) {
+                arretImpact.innerHTML = '<span class="text-success">Impact faible</span>';
+            } else if (duree <= 60) {
+                arretImpact.innerHTML = '<span class="text-warning">Impact modéré</span>';
+            } else {
+                arretImpact.innerHTML = '<span class="text-danger">Impact élevé</span>';
+            }
+        } else {
+            causeArretSection.style.display = 'none';
+            causeArretTextarea.required = false;
+            causeArretTextarea.value = '';
+            arretSummary.style.display = 'none';
+        }
+        updateSummary();
+    }
+    
+    // Calcul du taux de conformité amélioré
+    function updateConformityRate() {
+        const total = parseInt(palettesProduites.value) || 0;
+        const nonConformes = parseInt(palettesNonConformes.value) || 0;
+        
+        if (total > 0) {
+            // Validation: non conformes ne peut pas dépasser le total
+            if (nonConformes > total) {
+                palettesNonConformes.value = total;
+                showToast('Le nombre de palettes non conformes ne peut pas dépasser le total produit.', 'warning');
+                return;
+            }
+            
+            const conformes = total - nonConformes;
+            const tauxConformite = (conformes / total) * 100;
+            
+            conformityRate.textContent = tauxConformite.toFixed(1);
+            conformCount.textContent = conformes;
+            nonConformCount.textContent = nonConformes;
+            conformityBar.style.width = tauxConformite + '%';
+            
+            // Changer la couleur et l'icône selon le taux
+            conformityBar.className = 'progress-bar';
+            if (tauxConformite >= 95) {
+                conformityBar.classList.add('bg-success');
+                conformityAlert.className = 'alert alert-success';
+                conformityIcon.className = 'fas fa-check-circle fa-2x text-success';
+            } else if (tauxConformite >= 90) {
+                conformityBar.classList.add('bg-warning');
+                conformityAlert.className = 'alert alert-warning';
+                conformityIcon.className = 'fas fa-exclamation-triangle fa-2x text-warning';
+            } else {
+                conformityBar.classList.add('bg-danger');
+                conformityAlert.className = 'alert alert-danger';
+                conformityIcon.className = 'fas fa-times-circle fa-2x text-danger';
+            }
+            
+            conformityAlert.style.display = 'block';
+        } else {
+            conformityAlert.style.display = 'none';
+        }
+        updateSummary();
+    }
+    
+    // Nouveau: Mise à jour du résumé
+    function updateSummary() {
+        const total = parseInt(palettesProduites.value) || 0;
+        const nonConformes = parseInt(palettesNonConformes.value) || 0;
+        const arrets = parseInt(dureeArretInput.value) || 0;
+        const dechets = parseFloat(dechetsBoites.value) || 0;
+        
+        if (total > 0 || arrets > 0 || dechets > 0) {
+            document.getElementById('summaryPalettes').textContent = total;
+            document.getElementById('summaryArrets').textContent = arrets;
+            document.getElementById('summaryDechets').textContent = dechets.toFixed(1);
+            
+            if (total > 0) {
+                const conformes = total - nonConformes;
+                const tauxConformite = (conformes / total) * 100;
+                document.getElementById('summaryConformity').textContent = tauxConformite.toFixed(1) + '%';
+                document.getElementById('summaryConformity').className = tauxConformite >= 95 ? 'h4 text-success mb-0' : 
+                    tauxConformite >= 90 ? 'h4 text-warning mb-0' : 'h4 text-danger mb-0';
+            }
+            
+            summaryCard.style.display = 'block';
+        } else {
+            summaryCard.style.display = 'none';
+        }
+    }
+    
+    // Nouveau: Fonction pour convertir le temps
+    window.convertTime = function(minutes) {
+        dureeArretInput.value = minutes;
+        toggleCauseArret();
+    };
+    
+    // Nouveau: Toast notifications
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+        `;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.remove();
+            }
+        }, 5000);
+    }
+    
+    // Event listeners
+    dureeArretInput.addEventListener('input', toggleCauseArret);
+    palettesProduites.addEventListener('input', updateConformityRate);
+    palettesNonConformes.addEventListener('input', updateConformityRate);
+    dechetsBoites.addEventListener('input', updateSummary);
+    
+    // Aperçu du formulaire
+    previewBtn.addEventListener('click', function() {
+        updateSummary();
+        if (summaryCard.style.display === 'none') {
+            summaryCard.style.display = 'block';
+            previewBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Masquer';
+        } else {
+            summaryCard.style.display = 'none';
+            previewBtn.innerHTML = '<i class="fas fa-eye"></i> Aperçu';
+        }
+    });
+    
+    // Validation du formulaire améliorée
+    document.getElementById('productionForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const total = parseInt(palettesProduites.value) || 0;
+        const nonConformes = parseInt(palettesNonConformes.value) || 0;
+        const arret = parseInt(dureeArretInput.value) || 0;
+        const cause = causeArretTextarea.value.trim();
+        
+        let warnings = [];
+        let errors = [];
+        
+        // Vérifications des erreurs
+        if (nonConformes > total) {
+            errors.push('Le nombre de palettes non conformes ne peut pas dépasser le total produit.');
+        }
+        
+        if (arret > 0 && !cause) {
+            errors.push('Veuillez spécifier la cause de l\'arrêt.');
+            causeArretTextarea.focus();
+        }
+        
+        if (errors.length > 0) {
+            showToast(errors.join('<br>'), 'danger');
+            return false;
+        }
+        
+        // Vérifications des avertissements
+        if (total > 0) {
+            const conformes = total - nonConformes;
+            const tauxConformite = (conformes / total) * 100;
+            
+            if (tauxConformite < 80) {
+                warnings.push(`Taux de conformité très bas: ${tauxConformite.toFixed(1)}%`);
+            }
+            
+            if (total < 50) {
+                warnings.push(`Production faible: ${total} palettes`);
+            }
+        }
+        
+        if (arret > 120) {
+            warnings.push(`Temps d'arrêt élevé: ${arret} minutes`);
+        }
+        
+        // Afficher la modal de confirmation si des avertissements
+        if (warnings.length > 0) {
+            let content = '<div class="alert alert-warning mb-3">⚠️ Points d\'attention:</div><ul>';
+            warnings.forEach(warning => {
+                content += `<li>${warning}</li>`;
+            });
+            content += '</ul><p>Voulez-vous continuer l\'enregistrement ?</p>';
+            
+            document.getElementById('confirmContent').innerHTML = content;
+            confirmModal.show();
+        } else {
+            // Soumission directe
+            this.submit();
+        }
+        
+        return false;
+    });
+    
+    // Confirmation d'enregistrement
+    document.getElementById('confirmSave').addEventListener('click', function() {
+        confirmModal.hide();
+        document.getElementById('productionForm').submit();
+    });
+    
+    // Initialisation
+    toggleCauseArret();
+    updateConformityRate();
+    
+    // Auto-save draft (nouveau)
+    let saveTimeout;
+    function saveDraft() {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+            const formData = {
+                palettes_produites: palettesProduites.value,
+                palettes_non_conformes: palettesNonConformes.value,
+                duree_arret_minutes: dureeArretInput.value,
+                cause_arret: causeArretTextarea.value,
+                dechets_boites: dechetsBoites.value,
+                commentaires: document.getElementById('id_commentaires').value
+            };
+            localStorage.setItem('production_draft', JSON.stringify(formData));
+        }, 2000);
+    }
+    
+    // Restaurer le brouillon
+    const savedDraft = localStorage.getItem('production_draft');
+    if (savedDraft) {
+        try {
+            const draft = JSON.parse(savedDraft);
+            Object.keys(draft).forEach(key => {
+                const element = document.getElementById(`id_${key}`);
+                if (element && draft[key]) {
+                    element.value = draft[key];
+                }
+            });
+            toggleCauseArret();
+            updateConformityRate();
+            showToast('Brouillon restauré', 'info');
+        } catch (e) {
+            console.error('Erreur lors de la restauration du brouillon:', e);
+        }
+    }
+    
+    // Sauvegarder au changement
+    [palettesProduites, palettesNonConformes, dureeArretInput, causeArretTextarea, dechetsBoites].forEach(field => {
+        field.addEventListener('input', saveDraft);
+    });
+    
+    // Nettoyer le brouillon à la soumission
+    document.getElementById('productionForm').addEventListener('submit', function() {
+        localStorage.removeItem('production_draft');
+    });
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,44 @@
+<!-- templates/admin/partials/active_products_list.html -->
+<div class="row">
+    {% for product in active_products %}
+    <div class="col-md-6 col-lg-4 mb-2">
+        <div class="card border-0 bg-light">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong class="text-primary">{{ product.nom }}</strong>
+                        <br>
+                        <small class="text-muted">
+                            Par: {{ product.operateur.nom }} {{ product.operateur.prenom }}
+                            <br>
+                            Depuis: {{ product.heure_debut|time:"H:i" }}
+                            <br>
+                            <i class="fas fa-clock text-muted"></i> 
+                            Maj: {{ product.derniere_maj|time:"H:i:s" }}
+                        </small>
+                    </div>
+                    <div class="text-center">
+                        <span class="badge bg-success fs-6">
+                            {{ product.quantite_produite|floatformat:0 }}
+                        </span>
+                        <br>
+                        <small class="text-muted">unités</small>
+                        <br>
+                        <div class="progress mt-1" style="height: 4px;">
+                            <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" 
+                                 style="width: 100%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="text-center text-muted py-3">
+            <i class="fas fa-pause-circle fa-2x mb-2"></i>
+            <p>Aucune production en cours actuellement</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
