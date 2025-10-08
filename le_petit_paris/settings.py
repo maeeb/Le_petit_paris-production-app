@@ -60,36 +60,24 @@ WSGI_APPLICATION = 'le_petit_paris.wsgi.application'
 # DATABASES
 # -----------------------
 
-# ----------------------- 
-# DATABASES 
-# ----------------------- 
-DATABASE_URL = os.environ.get('DATABASE_URL')  
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 if DATABASE_URL:
-    # Parse l'URL sans ssl_require
+    # Configuration PostgreSQL pour Render
+    db_from_env = dj_database_url.config(
+        default=DATABASE_URL,
+        conn_max_age=600,
+        conn_health_checks=True,
+        ssl_require=False  # Désactive SSL strict
+    )
+    DATABASES = {'default': db_from_env}
+else:
+    # Base de données locale SQLite
     DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
-    }
-    
-    # Ajouter les options SSL manuellement
-    if 'OPTIONS' not in DATABASES['default']:
-        DATABASES['default']['OPTIONS'] = {}
-    
-    DATABASES['default']['OPTIONS'].update({
-        'sslmode': 'require',
-        'sslrootcert': '/etc/ssl/certs/ca-certificates.crt',  # Chemin du certificat
-        'connect_timeout': 10,
-    })
-else:     
-    DATABASES = {         
-        'default': {             
-            'ENGINE': 'django.db.backends.sqlite3',             
-            'NAME': BASE_DIR / 'db.sqlite3',         
-        }     
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
 # -----------------------
 # PASSWORD VALIDATION
