@@ -16,22 +16,24 @@ class Command(BaseCommand):
 
         # Opérateurs
         operateurs = [
-            ('op_matin', 'Équipe Matin', 'matin2025'),
-            ('op_aprem', 'Équipe Après-midi', 'aprem2025'),
-            ('op_nuit', 'Équipe Nuit', 'nuit2025'),
+            ('op_matin', 'Matin', 'matin2025'),
+            ('op_aprem', 'Après-midi', 'aprem2025'),
+            ('op_nuit', 'Nuit', 'nuit2025'),
         ]
 
-        for username, nom, password in operateurs:
+        for username, equipe, password in operateurs:
             if not User.objects.filter(username=username).exists():
                 user = User.objects.create_user(
                     username=username,
                     password=password,
-                    first_name=nom,
+                    first_name=equipe,  # <-- Nom exact de l'équipe
                     email=f'{username}@comocap.tn'
                 )
-                self.stdout.write(self.style.SUCCESS(f'✅ {username} créé'))
+                self.stdout.write(self.style.SUCCESS(f'✅ {username} créé avec équipe {equipe}'))
             else:
-                self.stdout.write(f'ℹ️  {username} existe déjà')
+                # Si l'utilisateur existe déjà, on met à jour son équipe
+                User.objects.filter(username=username).update(first_name=equipe)
+                self.stdout.write(f'ℹ️  {username} existe déjà, équipe mise à jour à {equipe}')
 
         self.stdout.write('')
         self.stdout.write(self.style.SUCCESS('🎉 Utilisateurs prêts !'))
