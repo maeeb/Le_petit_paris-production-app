@@ -73,33 +73,24 @@ WSGI_APPLICATION = 'le_petit_paris.wsgi.application'
 # -----------------------
 # DATABASES
 # -----------------------
-if os.environ.get('DATABASE_URL'):
-    # Production / Render
+# DATABASES
+if 'DATABASE_URL' in os.environ:
+    # En production (Render)
     DATABASES = {
-        'default': dj_database_url.config(
-            default=os.environ.get('DATABASE_URL'),
-            conn_max_age=600,
-            ssl_require=True
+        'default': dj_database_url.parse(
+            os.environ.get('DATABASE_URL'),
+            conn_max_age=600
         )
     }
 else:
-    # Développement local
+    # En développement local
     DATABASES = {
         'default': {
-            # Tu peux basculer entre SQLite ou PostgreSQL local
-            # SQLite local simple
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
-
-            # Pour PostgreSQL local, décommente et remplis USER/PASSWORD
-            # 'ENGINE': 'django.db.backends.postgresql',
-            # 'NAME': 'le_petit_paris_db',
-            # 'USER': 'votre_user',
-            # 'PASSWORD': 'votre_password',
-            # 'HOST': 'localhost',
-            # 'PORT': '5432',
         }
     }
+
 
 # -----------------------
 # PASSWORD VALIDATION
