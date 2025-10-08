@@ -10,18 +10,29 @@ class Command(BaseCommand):
         self.stdout.write('🔄 Création des utilisateurs...')
 
         # ---------------------------
-        # Création de l'admin
+        # Création ou mise à jour de l'admin
         # ---------------------------
-        if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser('admin', 'admin@comocap.tn', 'admin2025')
-            self.stdout.write(self.style.SUCCESS('✅ Admin créé'))
-        else:
-            self.stdout.write('ℹ️  Admin existe déjà')
+        admins = [
+            ('admin', 'admin@comocap.tn', 'admin2025'),
+        ]
+        for username, email, password in admins:
+            user, created = User.objects.get_or_create(username=username, defaults={'email': email})
+            if created:
+                user.set_password(password)
+                user.is_superuser = True
+                user.is_staff = True
+                user.save()
+                self.stdout.write(self.style.SUCCESS(f'✅ Admin {username} créé'))
+            else:
+                self.stdout.write(f'ℹ️  Admin {username} existe déjà')
+            # Assurer que UserProfile existe
+            profile, prof_created = UserProfile.objects.get_or_create(user=user)
+            if prof_created:
+                self.stdout.write(f'✅ Profil créé pour {username}')
 
         # ---------------------------
-        # Création des opérateurs
+        # Création ou mise à jour des opérateurs
         # ---------------------------
-        # Code horaire = correspond exactement aux choix HORAIRES_CHOICES
         operateurs = [
             ('op_matin', '6-14', 'matin2025'),
             ('op_aprem', '14-22', 'aprem2025'),
@@ -29,28 +40,25 @@ class Command(BaseCommand):
         ]
 
         for username, horaire_code, password in operateurs:
-            if not User.objects.filter(username=username).exists():
-                # Crée l'utilisateur
-                user = User.objects.create_user(
-                    username=username,
-                    password=password,
-                    first_name=f'Opérateur {horaire_code}',
-                    email=f'{username}@comocap.tn'
-                )
-                # Crée le profil associé avec l'horaire
-                UserProfile.objects.create(user=user, horaire_equipe=horaire_code)
-                self.stdout.write(self.style.SUCCESS(f'✅ {username} créé avec horaire {horaire_code}'))
-            else:
-                # Mise à jour si l'utilisateur existe déjà
-                user = User.objects.get(username=username)
+            user, created = User.objects.get_or_create(username=username, defaults={'email': f'{username}@comocap.tn'})
+            if created:
+                user.set_password(password)
                 user.first_name = f'Opérateur {horaire_code}'
                 user.save()
-                profile, created = UserProfile.objects.get_or_create(user=user)
-                profile.horaire_equipe = horaire_code
-                profile.save()
-                self.stdout.write(f'ℹ️  {username} existe déjà, horaire mis à jour à {horaire_code}')
+                self.stdout.write(self.style.SUCCESS(f'✅ {username} créé'))
+            else:
+                self.stdout.write(f'ℹ️  {username} existe déjà, mise à jour horaire')
+                user.first_name = f'Opérateur {horaire_code}'
+                user.save()
+            # Créer ou mettre à jour le profil et l’horaire
+            profile, prof_created = UserProfile.objects.get_or_create(user=user)
+            profile.horaire_equipe = horaire_code
+            profile.save()
+            if prof_created:
+                self.stdout.write(f'✅ Profil créé pour {username}')
+            self.stdout.write(f'ℹ️  Horaire mis à jour pour {username}: {horaire_code}')
 
         self.stdout.write('')
-        self.stdout.write(self.style.SUCCESS('🎉 Tous les utilisateurs sont prêts !'))
-        self.stdout.write('Admin : admin / admin2025')
-        self.stdout.write('Opérateurs : op_matin, op_aprem, op_nuit')
+        self.stdout.write(self.style.SUCCESS('🎉 Tous les utilisateurs et profils sont prêts !'))
+        self.stdout.write('Admins : ' + ', '.join([a[0] for a in admins]))
+        self.stdout.write('Opérateurs : ' + ', '.join([o[0] for o in operateurs]))

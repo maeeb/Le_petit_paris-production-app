@@ -14,7 +14,7 @@ urlpatterns = [
     path('dashboard/', views.operator_dashboard, name='operator_dashboard'),
     path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('operateur-login/', views.operateur_login_view, name='operateur_login'),
-
+    
     # ==========================================
     # GESTION DES RELEVÉS DE PRODUCTION
     # ==========================================

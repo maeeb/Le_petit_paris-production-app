@@ -16,6 +16,8 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from django.contrib.auth.models import User
 import json
 from django.db.models import Max
+from datetime import datetime
+import pytz
 
 
 
@@ -192,41 +194,57 @@ def logout_view(request):
     messages.success(request, 'Vous avez été déconnecté avec succès')
     return redirect('login')
 
-
 def shift_blocked(request):
-    """Page affichée quand l'accès est bloqué selon l'horaire"""
-    current_hour = datetime.now().hour
-    current_shift, shift_name = determine_current_shift()
+    """Page affichée quand l'accès est bloqué"""
+    tz = pytz.timezone('Africa/Tunis')
+    now = datetime.now(tz)
+    current_hour = now.hour
     
+    # Déterminer l'équipe actuellement en service
+    if 6 <= current_hour < 14:
+        current_shift = "Matin (6h-14h)"
+    elif 14 <= current_hour < 22:
+        current_shift = "Après-midi (14h-22h)"
+    else:
+        current_shift = "Nuit (22h-6h)"
+    
+    # Récupérer l'horaire de l'utilisateur
     user_shift = None
     user_next_access = None
     
-    if request.user.is_authenticated and hasattr(request.user, 'userprofile'):
-        profile = request.user.userprofile
-        # CORRECTION : récupérer la valeur brute
-        user_shift = profile.horaire_equipe
-        
-        # CORRECTION : Déterminer le prochain accès selon TOUS les formats
-        if profile.horaire_equipe in ['6-14', '06-14']:
-            user_next_access = "06h00 à 14h00"
-        elif profile.horaire_equipe in ['14-22']:
-            user_next_access = "14h00 à 22h00"  
-        elif profile.horaire_equipe in ['22-6', '22-06']:
-            user_next_access = "22h00 à 06h00"
-        else:
-            user_next_access = "Horaire non défini"
+    if request.user.is_authenticated:
+        try:
+            profile = request.user.userprofile
+            user_shift_code = profile.horaire_equipe
+            
+            # Mapper le code vers le nom lisible
+            shift_names = {
+                '6-14': 'Matin (6h-14h)',
+                '14-22': 'Après-midi (14h-22h)',
+                '22-6': 'Nuit (22h-6h)',
+            }
+            user_shift = shift_names.get(user_shift_code, user_shift_code)
+            
+            # Calculer le prochain accès
+            if user_shift_code == '6-14':
+                user_next_access = "demain à 6h00" if current_hour >= 14 else "aujourd'hui à 6h00"
+            elif user_shift_code == '14-22':
+                user_next_access = "aujourd'hui à 14h00" if current_hour < 14 else "demain à 14h00"
+            elif user_shift_code == '22-6':
+                user_next_access = "aujourd'hui à 22h00" if current_hour < 22 else "demain à 22h00"
+                
+        except Exception as e:
+            print(f"[VIEW ERROR] {e}")
     
     context = {
         'current_hour': current_hour,
-        'current_shift': shift_name,
+        'current_shift': current_shift,
         'user_shift': user_shift,
         'user_next_access': user_next_access,
-        'is_blocked': True
     }
-    
+    print("DEBUG - user_shift_code:", user_shift_code)
+
     return render(request, 'production/shift_blocked.html', context)
-
-
 # =====================================================
 # TABLEAUX DE BORD
 # =====================================================
