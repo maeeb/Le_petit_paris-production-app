@@ -9,46 +9,45 @@ echo "📦 Collecte des fichiers statiques..."
 python manage.py collectstatic --no-input
 
 echo "🗃️ Application des migrations..."
-python manage.py migrate
+python manage.py migrate --no-input
 
-echo "👤 Vérification / création du superutilisateur et opérateurs..."
+echo "👤 Création/Mise à jour des utilisateurs..."
 python manage.py shell <<EOF
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+User = get_user_model()
 
-# -------------------------
-# Superutilisateur
-# -------------------------
+# Admin
 if not User.objects.filter(username='admin').exists():
     User.objects.create_superuser('admin', 'admin@comocap.tn', 'admin2025')
-    print('✅ Superuser créé : admin / admin2025')
+    print('✅ Admin créé : admin / admin2025')
 else:
-    print('ℹ️ Superuser existe déjà')
+    print('ℹ️ Admin existe déjà')
 
-# -------------------------
-# Opérateurs
-# -------------------------
-operateurs = [
-    ('op_matin', 'Matin', 'matin2025'),
-    ('op_aprem', 'Après-midi', 'aprem2025'),
-    ('op_nuit', 'Nuit', 'nuit2025'),
+# Superviseurs avec QR codes
+superviseurs = [
+    ('op_matin', 'matin2025', 'Équipe Matin'),
+    ('op_aprem', 'aprem2025', 'Équipe Après-midi'),
+    ('op_nuit', 'nuit2025', 'Équipe Nuit'),
 ]
 
-for username, equipe, password in operateurs:
-    user = User.objects.filter(username=username).first()
-    if not user:
-        User.objects.create_user(
-            username=username,
-            password=password,
-            first_name=equipe,
-            email=f'{username}@comocap.tn'
-        )
-        print(f'✅ {username} créé avec équipe {equipe}')
-    else:
-        # Met à jour le nom de l'équipe si nécessaire
-        user.first_name = equipe
+for username, password, nom in superviseurs:
+    user, created = User.objects.get_or_create(username=username)
+    if created:
+        user.set_password(password)
+        user.first_name = nom
+        user.email = f'{username}@comocap.tn'
         user.save()
-        print(f'ℹ️ {username} existant mis à jour avec équipe {equipe}')
+        print(f'✅ {username} créé : {nom}')
+    else:
+        # Mettre à jour le first_name même si l'utilisateur existe
+        if not user.first_name:
+            user.first_name = nom
+            user.save()
+            print(f'✅ {username} mis à jour avec : {nom}')
+        else:
+            print(f'ℹ️ {username} existe déjà')
 
+print('✅ Tous les utilisateurs sont prêts!')
 EOF
 
 echo "✅ Build terminé avec succès !"

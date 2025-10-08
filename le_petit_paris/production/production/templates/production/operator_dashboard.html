@@ -1,0 +1,150 @@
+{% extends 'production/base.html' %}
+
+{% block title %}Dashboard Opérateur - Le Petit Paris{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-tachometer-alt"></i> Interface Opérateur</h2>
+        <p class="text-muted">Bienvenue {{ user.get_full_name|default:user.username }}</p>
+    </div>
+</div>
+
+<!-- Statistiques du jour -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-info text-white stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-pallet fa-3x mb-2"></i>
+                <h5>Mes Palettes Aujourd'hui</h5>
+                <h3 class="mb-0">{{ user_stats.palettes_today }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-warning text-white stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-trash fa-3x mb-2"></i>
+                <h5>Mes Déchets Aujourd'hui</h5>
+                <h3 class="mb-0">{{ user_stats.dechets_today|floatformat:1 }} boites</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-danger text-white stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-pause fa-3x mb-2"></i>
+                <h5>Minutes d'Arrêt</h5>
+                <h3 class="mb-0">{{ user_stats.arrets_today }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Boutons d'action -->
+<div class="row mb-4">
+    <div class="col-12 text-center">
+        <a href="{% url 'add_production_record' %}" class="btn btn-success btn-lg me-3">
+            <i class="fas fa-plus"></i> Nouveau Relevé
+        </a>
+        <a href="{% url 'production_history' %}" class="btn btn-info btn-lg">
+            <i class="fas fa-history"></i> Mon Historique
+        </a>
+    </div>
+</div>
+
+<!-- Mes Derniers Enregistrements -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-clipboard-list"></i> Mes Derniers Enregistrements</h5>
+                <a href="{% url 'production_history' %}" class="btn btn-sm btn-outline-primary">
+                    Voir tout
+                </a>
+            </div>
+            <div class="card-body">
+                {% if recent_records %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+    <tr>
+        <th>Date/Heure</th>
+        <th>Ligne</th>
+        <th>Produit</th>
+        <th>Palettes</th>
+        <th>Palettes Non Conformes</th>
+        <th>Cause Non-Conformité</th>  <!-- <- nouvelle colonne -->
+        <th>Déchets (boites)</th>
+        <th>Arrêts (min)</th>
+        <th>Actions</th>
+    </tr>
+</thead>
+                         <tbody>
+    {% for record in recent_records %}
+    <tr>
+        <td>
+            <strong>{{ record.date_heure|date:"d/m/Y" }}</strong><br>
+            <small class="text-muted">{{ record.date_heure|date:"H:i" }}</small>
+        </td>
+        <td>
+            <span class="badge bg-info">{{ record.ligne_production }}</span>
+        </td>
+        <td>{{ record.produit }}</td>
+        <td>
+            <span class="badge bg-success">{{ record.palettes_produites }}</span>
+        </td>
+        <td>
+            {% if record.palettes_non_conformes > 0 %}
+                <span class="badge bg-warning">{{ record.palettes_non_conformes }}</span>
+            {% else %}
+                <span class="text-muted">0</span>
+            {% endif %}
+        </td>
+        <td>
+            {% if record.palettes_non_conformes > 0 %}
+                <span class="badge bg-warning">{{ record.cause_non_conformite }}</span>
+            {% else %}
+                <span class="text-muted">-</span>
+            {% endif %}
+        </td>
+        <td>{{ record.dechets_boites|floatformat:1 }}</td>
+        <td>
+            {% if record.duree_arret_minutes > 0 %}
+                <span class="badge bg-warning">{{ record.duree_arret_minutes }}</span>
+            {% else %}
+                <span class="badge bg-success">0</span>
+            {% endif %}
+        </td>
+        <td>
+            {% now "U" as current_timestamp %}
+            {% if record.date_heure.timestamp|add:7200 > current_timestamp %}
+                <a href="{% url 'edit_production_record' record.id %}" 
+                   class="btn btn-sm btn-outline-warning" 
+                   title="Modifier">
+                    <i class="fas fa-edit"></i>
+                </a>
+            {% else %}
+                <span class="text-muted">
+                    <i class="fas fa-lock" title="Modification non autorisée"></i>
+                </span>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</tbody>
+
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">Aucun enregistrement trouvé.</p>
+                        <p class="text-muted">Commencez par créer votre premier relevé !</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -22,7 +22,17 @@ from django.db.models import Max
 # =====================================================
 # FONCTIONS UTILITAIRES ET CALCULS KPI
 # =====================================================
-
+def operateur_login_view(request):
+    if request.method == 'POST':
+        username = request.POST['username']
+        password = request.POST['password']
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect('operator_dashboard')  # redirige vers le dashboard opérateur
+        else:
+            return render(request, 'operateur_login.html', {'error': 'Identifiants incorrects'})
+    return render(request, 'operateur_login.html')
 def calculate_kpis(records):
     """Calcule tous les KPIs à partir des enregistrements fournis"""
     if not records.exists():

@@ -1,0 +1,334 @@
+<!-- Modal pour traiter les palettes NC - Version modifiée -->
+{% if user.is_staff %}
+<div class="modal fade" id="paletteNCModal" tabindex="-1" aria-labelledby="paletteNCModalLabel" aria-hidden>
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #17a2b8, #007bff); color: white;">
+                <h5 class="modal-title" id="paletteNCModalLabel">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Traitement des Palettes Non Conformes
+                </h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closePaletteNCModal()" aria-label="Close"></button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Zone d'affichage des détails -->
+                <div id="palette-details-loading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <p class="mt-2">Chargement des détails...</p>
+                </div>
+                
+                <div id="palette-details-error" class="alert alert-danger d-none">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span id="error-message"></span>
+                </div>
+                
+                <div id="palette-details-content" class="d-none">
+                    <!-- Section d'informations en format horizontal - Style similaire à l'image -->
+                    <div class="info-section mb-4">
+                        <!-- Première ligne avec les informations principales -->
+                        <div class="row info-row mb-3 p-3" style="background-color: #d1ecf1; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                            <div class="col-md-3">
+                                <div class="info-item">
+                                    <i class="fas fa-box text-info"></i>
+                                    <strong>Produit :</strong>
+                                    <span id="modal-produit" class="info-value">-</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="info-item">
+                                    <i class="fas fa-clock text-info"></i>
+                                    <strong>Date/Heure :</strong>
+                                    <span id="modal-date" class="info-value">-</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="info-item">
+                                    <i class="fas fa-user text-info"></i>
+                                    <strong>Opérateur :</strong>
+                                    <span id="modal-operateur" class="info-value">-</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="info-item">
+                                    <i class="fas fa-industry text-info"></i>
+                                    <strong>Ligne :</strong>
+                                    <span id="modal-ligne" class="info-value">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Deuxième ligne avec l'alerte des palettes NC -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <div class="alert alert-danger text-center mb-0" style="background-color: #dc3545; color: white; border-radius: 8px;">
+                                    <i class="fas fa-exclamation-triangle fa-lg"></i>
+                                    <strong><span id="modal-palettes-nc">0</span> palette(s) non conforme(s) à traiter</strong>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Troisième ligne avec la cause de non-conformité -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="alert alert-warning mb-0" style="border-left: 4px solid #ffc107; background-color: #fff3cd;">
+                                    <i class="fas fa-list-alt"></i>
+                                    <strong>Cause de Non-Conformité :</strong>
+                                    <span id="modal-cause-nc" class="ms-2">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Options de traitement simplifiées -->
+                    <div class="row g-3">
+                        <!-- Option 1: Traitement détaillé -->
+                        <div class="col-lg-6">
+                            <form id="form-traitement-detaille" method="post" action="">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="traitement_detaille">
+                                <input type="hidden" name="record_id" id="record-id-detaille" value="">
+                                
+                                <div class="card border-primary">
+                                    <div class="card-header bg-primary text-white">
+                                        <h6 class="mb-0"><i class="fas fa-clipboard-check"></i> Traitement Détaillé</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <!-- Palettes récupérées -->
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold text-success">
+                                                <i class="fas fa-check-circle"></i> Palettes récupérées conformes :
+                                            </label>
+                                            <input type="number" 
+                                                   name="palettes_conformes" 
+                                                   id="palettes_conformes"
+                                                   class="form-control form-control-lg text-center border-success" 
+                                                   min="0" 
+                                                   placeholder="0"
+                                                   value="0">
+                                        </div>
+
+                                        <!-- Fardeaux partiels -->
+                                        <div class="mb-4">
+                                            <label class="form-label fw-bold text-info">
+                                                <i class="fas fa-cubes"></i> Fardeaux récupérés partiellement :
+                                            </label>
+                                            <input type="number" 
+                                                   name="fardeaux_partiels" 
+                                                   id="fardeaux_partiels"
+                                                   class="form-control form-control-lg text-center border-info" 
+                                                   min="0" 
+                                                   placeholder="0"
+                                                   value="0">
+                                            <div class="form-text text-info">
+                                                <i class="fas fa-info-circle"></i> 1 fardeau = 24 boîtes, 1 palette = 72 fardeaux
+                                            </div>
+                                        </div>
+                                        
+                                        <button type="button" class="btn btn-primary btn-lg w-100" onclick="submitTraitementDetaille()">
+                                            <i class="fas fa-save"></i> Enregistrer le Traitement
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- Option 2: Actions rapides -->
+                        <div class="col-lg-6">
+                            <div class="row g-3">
+                                <!-- Toutes conformes -->
+                                <div class="col-12">
+                                    <form id="form-toute-conforme" method="post" action="">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="toute_conforme">
+                                        <input type="hidden" name="record_id" id="record-id-toute-conforme" value="">
+                                        
+                                        <div class="card border-success h-100">
+                                            <div class="card-body text-center">
+                                                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                                                <h6 class="card-title text-success">Toutes Conformes</h6>
+                                                <p class="small text-muted mb-3">
+                                                    Marquer toutes les palettes NC comme conformes
+                                                </p>
+                                                <button type="button" class="btn btn-success w-100" onclick="submitTouteConforme()">
+                                                    <i class="fas fa-thumbs-up"></i> Valider
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <!-- Toutes non conformes -->
+                                <div class="col-12">
+                                    <form id="form-non-conforme" method="post" action="">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="non_conforme">
+                                        <input type="hidden" name="record_id" id="record-id-non-conforme" value="">
+                                        
+                                        <div class="card border-danger h-100">
+                                            <div class="card-body text-center">
+                                                <i class="fas fa-times-circle fa-3x text-danger mb-3"></i>
+                                                <h6 class="card-title text-danger">Toutes Non Conformes</h6>
+                                                <p class="small text-muted mb-3">
+                                                    Confirmer que toutes restent NC (déchets)
+                                                </p>
+                                                <button type="button" class="btn btn-danger w-100" onclick="submitNonConforme()">
+                                                    <i class="fas fa-thumbs-down"></i> Confirmer
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <!-- Récupération rapide -->
+                                <div class="col-12">
+                                    <div class="card border-warning h-100">
+                                        <div class="card-body">
+                                            <div class="text-center mb-3">
+                                                <i class="fas fa-bolt fa-2x text-warning"></i>
+                                                <h6 class="text-warning mt-2">Récupération Rapide</h6>
+                                            </div>
+                                            <div class="input-group">
+                                                <input type="number" 
+                                                       id="fardeaux_rapide" 
+                                                       class="form-control" 
+                                                       placeholder="Nb fardeaux"
+                                                       min="0">
+                                                <button class="btn btn-warning" type="button" onclick="submitRapidePartiel()">
+                                                    <i class="fas fa-bolt"></i> Go
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Formulaire caché pour traitement partiel -->
+                                    <form id="form-partiel" method="post" action="" style="display: none;">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="partiel">
+                                        <input type="hidden" name="record_id" id="record-id-partiel" value="">
+                                        <input type="hidden" name="fardeaux_conformes" id="fardeaux_conformes" value="">
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" onclick="closePaletteNCModal()">
+                    <i class="fas fa-times"></i> Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overlay personnalisé pour le modal -->
+<div id="modalOverlay" class="modal-overlay" onclick="closePaletteNCModal()"></div>
+
+<style>
+/* Styles pour le modal personnalisé */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 1050;
+}
+
+.modal-overlay.show {
+    display: block !important;
+}
+
+#paletteNCModal {
+    z-index: 1055;
+}
+
+#paletteNCModal.show {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Styles pour la section d'informations */
+.info-section {
+    border-radius: 8px;
+}
+
+.info-row {
+    margin: 0;
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.info-item i {
+    width: 20px;
+    text-align: center;
+}
+
+.info-value {
+    font-weight: 600;
+    color: #333;
+}
+
+/* Styles pour les cartes */
+.card.border-success:hover, 
+.card.border-warning:hover, 
+.card.border-danger:hover,
+.card.border-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
+}
+
+/* Style pour les inputs */
+.form-control:focus {
+    border-width: 2px;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .modal-dialog {
+        margin: 10px;
+        max-width: calc(100% - 20px);
+    }
+    
+    .col-lg-6 {
+        margin-bottom: 1rem;
+    }
+
+    .info-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        margin-bottom: 10px;
+    }
+
+    .info-row {
+        gap: 10px;
+    }
+}
+
+@media (max-width: 576px) {
+    .info-item {
+        font-size: 12px;
+    }
+    
+    .info-value {
+        font-size: 13px;
+    }
+}
+</style>
+{% endif %}

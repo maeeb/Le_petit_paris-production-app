@@ -2,27 +2,18 @@ import os
 from pathlib import Path
 import dj_database_url
 
-# -----------------------
-# BASE
-# -----------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# -----------------------
-# SECURITY
-# -----------------------
 SECRET_KEY = os.environ.get('SECRET_KEY', 'votre-cle-secrete-dev')
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    '.onrender.com',          # pour Render
-    'le-petit-paris.onrender.com',  # futur domaine
+    '.onrender.com',
+    'le-petit-paris.onrender.com',
 ]
 
-# -----------------------
-# APPS
-# -----------------------
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -30,14 +21,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'production',  # ton app principale
+    'production',
 ]
 
-# -----------------------
-# MIDDLEWARE
-# -----------------------
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -47,15 +36,12 @@ MIDDLEWARE = [
     'production.middleware.ShiftAccessMiddleware',
 ]
 
-# -----------------------
-# URLS & TEMPLATES
-# -----------------------
 ROOT_URLCONF = 'le_petit_paris.urls'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],  # ajouter si tu as des templates global
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -73,28 +59,40 @@ WSGI_APPLICATION = 'le_petit_paris.wsgi.application'
 # -----------------------
 # DATABASES
 # -----------------------
-# DATABASES
-if 'DATABASE_URL' in os.environ:
-    # En production (Render)
+
+# ----------------------- 
+# DATABASES 
+# ----------------------- 
+DATABASE_URL = os.environ.get('DATABASE_URL')  
+
+if DATABASE_URL:
+    # Parse l'URL sans ssl_require
     DATABASES = {
-        'default': dj_database_url.parse(
-            os.environ.get('DATABASE_URL'),
-            conn_max_age=600
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
         )
     }
-else:
-    # En développement local
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
+    
+    # Ajouter les options SSL manuellement
+    if 'OPTIONS' not in DATABASES['default']:
+        DATABASES['default']['OPTIONS'] = {}
+    
+    DATABASES['default']['OPTIONS'].update({
+        'sslmode': 'require',
+        'sslrootcert': '/etc/ssl/certs/ca-certificates.crt',  # Chemin du certificat
+        'connect_timeout': 10,
+    })
+else:     
+    DATABASES = {         
+        'default': {             
+            'ENGINE': 'django.db.backends.sqlite3',             
+            'NAME': BASE_DIR / 'db.sqlite3',         
+        }     
     }
-
-
 # -----------------------
 # PASSWORD VALIDATION
-# -----------------------
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',},
@@ -102,17 +100,11 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',},
 ]
 
-# -----------------------
-# INTERNATIONALIZATION
-# -----------------------
 LANGUAGE_CODE = 'fr-fr'
 TIME_ZONE = 'Africa/Tunis'
 USE_I18N = True
 USE_TZ = True
 
-# -----------------------
-# STATIC & MEDIA FILES
-# -----------------------
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
@@ -121,14 +113,8 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# -----------------------
-# AUTH REDIRECTS
-# -----------------------
 LOGIN_URL = '/production/login/'
 LOGIN_REDIRECT_URL = '/production/dashboard/'
 LOGOUT_REDIRECT_URL = '/production/login/'
 
-# -----------------------
-# AUTO FIELD
-# -----------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

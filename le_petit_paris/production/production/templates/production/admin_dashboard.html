@@ -1,0 +1,1854 @@
+ {% extends 'production/base.html' %}
+{% load static %}
+{% block extra_css %}
+
+<style>
+    .stats-card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        border: none;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .stats-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    .kpi-card {
+        transition: transform 0.2s ease-in-out;
+        border: 2px solid #f8f9fa;
+    }
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        border-color: #007bff;
+        box-shadow: 0 4px 12px rgba(0,123,255,0.15);
+    }
+    .pulse {
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+    .highlight-new {
+        animation: highlight 3s ease-in-out;
+    }
+    @keyframes highlight {
+        0% { background-color: rgba(40, 167, 69, 0.3); }
+        50% { background-color: rgba(40, 167, 69, 0.1); }
+        100% { background-color: transparent; }
+    }
+    .progress-ring {
+        width: 60px;
+        height: 60px;
+    }
+    .alert-notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1050;
+        max-width: 400px;
+    }
+</style>
+{% endblock %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-tachometer-alt"></i> Tableau de Bord Admin - Le Petit Paris 🍅</h1>
+    <div>
+        <span class="badge bg-success fs-6 me-2">
+            <i class="fas fa-clock"></i> {{ current_time|date:"H:i:s" }} 
+        </span>
+        <span class="badge bg-info fs-6">
+            <i class="fas fa-calendar"></i> {{ current_time|date:"d/m/Y" }}
+        </span>
+    </div>
+</div>
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="text-primary">
+        <i class="fas fa-tachometer-alt"></i> 
+        Tableau de Bord Admin - 
+        <span class="text-danger"></span>
+    </h1>
+    <div class="d-flex align-items-center">
+        <div class="me-3">
+            <span class="badge bg-success fs-6 me-2">
+                <i class="fas fa-clock"></i> <span id="current-time">{{ current_time|date:"H:i:s" }}</span>
+            </span>
+            <span class="badge bg-info fs-6">
+                <i class="fas fa-calendar"></i> {{ current_time|date:"d/m/Y" }}
+            </span>
+        </div>
+        <div class="dropdown">
+            <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <i class="fas fa-cog"></i> Actions
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{% url 'production_history' %}"><i class="fas fa-history"></i> Historique</a></li>
+                <li><a class="dropdown-item" href="{ url 'export_data' }"><i class="fas fa-download"></i> Exporter données</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="#" id="refresh-data"><i class="fas fa-sync"></i> Actualiser</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Indicateur de statut en temps réel -->
+<div class="alert alert-light border-0 mb-4" id="status-indicator">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-circle text-success me-2"></i>
+            <strong>Système en Fonctionnement</strong>
+            <small class="text-muted ms-2">Dernière mise à jour: <span id="last-update">{{ current_time|date:"H:i:s" }}</span></small>
+        </div>
+        <div class="badge bg-light text-dark">
+            <i class="fas fa-users"></i> {{ active_operators_count|default:0 }} opérateur(s) actif(s)
+        </div>
+    </div>
+</div>
+
+<!-- Indicateur de produits en cours de production -->
+<div class="alert alert-info border-0 mb-4" id="production-status-indicator">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-cog fa-spin text-primary me-2"></i>
+            <strong>Production en Cours</strong>
+            <small class="text-muted ms-2">
+                Dernière mise à jour: <span id="last-production-update">{{ current_time|date:"H:i:s" }}</span>
+            </small>
+        </div>
+        <div class="badge bg-primary text-white">
+            <i class="fas fa-boxes"></i> 
+            <span id="active-products-count">{{ active_products_count|default:0 }}</span> produit(s) actif(s)
+        </div>
+    </div>
+    
+    <!-- Liste des produits en cours -->
+    <div class="mt-3 pt-3 border-top" id="active-products-container">
+        {% if active_products %}
+            <div class="row" id="products-grid">
+                {% for product in active_products %}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card border-0 shadow-sm bg-light hover-card">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="text-primary mb-1 fw-bold">
+                                        <i class="fas fa-box-open text-primary me-1"></i>
+                                        {{ product.nom|truncatechars:20 }}
+                                    </h6>
+                                    <div class="text-muted small mb-2">
+                                        <div><i class="fas fa-industry me-1"></i> Ligne {{ product.ligne_production.numero }}</div>
+                                        <div><i class="fas fa-user me-1"></i> {{ product.operateur.username }}</div>
+                                        <div><i class="fas fa-clock me-1"></i> Depuis {{ product.heure_debut|time:"H:i" }}</div>
+                                    </div>
+                                </div>
+                                <div class="text-center ms-2">
+                                    <span class="badge bg-success fs-6 px-2 py-1">
+                                        {{ product.quantite_produite|default:0 }}
+                                    </span>
+                                    <div class="small text-muted mt-1">palettes</div>
+                                    <div class="progress mt-2" style="height: 4px; width: 60px;">
+                                        <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" 
+                                             style="width: 100%"></div>
+                                    </div>
+                                    <small class="text-success">Active</small>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-2 pt-2 border-top">
+                                <div class="col-6 text-center">
+                                    <small class="text-success fw-bold">{{ product.conformes|default:0 }}</small>
+                                    <div class="text-muted" style="font-size: 0.75rem;">Conformes</div>
+                                </div>
+                                <div class="col-6 text-center">
+                                    <small class="text-muted">{{ product.derniere_maj|time:"H:i:s" }}</small>
+                                    <div class="text-muted" style="font-size: 0.75rem;">Dernière MAJ</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-pause-circle fa-3x mb-3 text-muted"></i>
+                <h6 class="text-muted">Aucune production active</h6>
+                <small>Les relevés des 2 dernières heures s'afficheront ici</small>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Styles CSS supplémentaires -->
+<style>
+#production-status-indicator {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    border-left: 4px solid #2196f3 !important;
+    transition: all 0.3s ease;
+}
+
+.hover-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid rgba(0,0,0,0.05) !important;
+}
+
+.hover-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15) !important;
+}
+
+.production-pulse {
+    animation: pulse 2s infinite;
+}
+
+.production-active {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-left: 4px solid #28a745 !important;
+}
+
+.production-inactive {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-left: 4px solid #6c757d !important;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.8; }
+    100% { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .hover-card .card-body {
+        padding: 1rem !important;
+    }
+    
+    .hover-card h6 {
+        font-size: 0.9rem;
+    }
+}
+</style>
+
+<!-- Script JavaScript pour mise à jour temps réel -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let updateInterval;
+    let isUpdating = false;
+    
+    // Fonction pour mettre à jour le statut de production
+    function updateProductionStatus() {
+        if (isUpdating) return; // Éviter les appels multiples
+        isUpdating = true;
+        
+        fetch('{% url "api_production_data" %}', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Erreur réseau');
+            return response.json();
+        })
+        .then(data => {
+            // Mettre à jour le compteur
+            const countElement = document.getElementById('active-products-count');
+            if (countElement) {
+                countElement.textContent = data.active_products_count || 0;
+            }
+            
+            // Mettre à jour l'heure
+            const timeElement = document.getElementById('last-production-update');
+            if (timeElement) {
+                timeElement.textContent = data.current_time || new Date().toLocaleTimeString();
+            }
+            
+            // Changer l'apparence selon l'état
+            const indicator = document.getElementById('production-status-indicator');
+            const icon = indicator.querySelector('i');
+            const badge = indicator.querySelector('.badge');
+            
+            if (data.active_products_count > 0) {
+                indicator.className = 'alert alert-info border-0 mb-4 production-pulse production-active';
+                if (icon) icon.className = 'fas fa-cog fa-spin text-success me-2';
+                if (badge) badge.className = 'badge bg-success text-white';
+            } else {
+                indicator.className = 'alert alert-light border-0 mb-4 production-inactive';
+                if (icon) icon.className = 'fas fa-pause-circle text-muted me-2';
+                if (badge) badge.className = 'badge bg-light text-dark border';
+            }
+            
+            // Mettre à jour la liste des produits
+            const container = document.getElementById('active-products-container');
+            if (container && data.products_html) {
+                container.innerHTML = `
+                    <div class="row fade-in" id="products-grid">
+                        ${data.products_html}
+                    </div>
+                `;
+            }
+            
+            // Log pour debug (retirer en production)
+            console.log('Production status updated:', {
+                count: data.active_products_count,
+                time: data.current_time,
+                products: data.active_products ? data.active_products.length : 0
+            });
+        })
+        .catch(error => {
+            console.error('Erreur lors de la mise à jour:', error);
+            
+            // Afficher un message d'erreur discret
+            const indicator = document.getElementById('production-status-indicator');
+            if (indicator) {
+                indicator.className = 'alert alert-warning border-0 mb-4';
+                const icon = indicator.querySelector('i');
+                if (icon) icon.className = 'fas fa-exclamation-triangle text-warning me-2';
+            }
+        })
+        .finally(() => {
+            isUpdating = false;
+        });
+    }
+    
+    // Fonction pour démarrer/arrêter les mises à jour automatiques
+    function startAutoUpdate() {
+        if (updateInterval) clearInterval(updateInterval);
+        updateInterval = setInterval(updateProductionStatus, 30000); // 30 secondes
+    }
+    
+    function stopAutoUpdate() {
+        if (updateInterval) {
+            clearInterval(updateInterval);
+            updateInterval = null;
+        }
+    }
+    
+    // Mise à jour initiale
+    updateProductionStatus();
+    
+    // Démarrer les mises à jour automatiques
+    startAutoUpdate();
+    
+    // Gérer la visibilité de l'onglet pour économiser les ressources
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopAutoUpdate();
+        } else {
+            updateProductionStatus();
+            startAutoUpdate();
+        }
+    });
+    
+    // Nettoyer à la destruction de la page
+    window.addEventListener('beforeunload', function() {
+        stopAutoUpdate();
+    });
+    
+    // Mise à jour manuelle (optionnel - ajouter un bouton de refresh)
+    window.refreshProductionStatus = function() {
+        updateProductionStatus();
+    };
+});
+</script>
+
+<!-- Statistiques Principales -->
+<div class="row mb-4">
+    <!-- Palettes Produites -->
+    <div class="col-md-3">
+        <div class="card stats-card text-white" style="background: linear-gradient(135deg, #28a745, #20c997);">
+            <div class="card-body text-center">
+                <i class="fas fa-pallet fa-2x mb-2"></i>
+                <h3 class="mb-0 counter" data-target="{{ stats.total_palettes }}">0</h3>
+                <p class="mb-0">Palettes Produites</p>
+                <small>Aujourd'hui</small>
+                <div class="mt-2">
+                    <small class="opacity-75">
+                        {% if stats.evolution_palettes > 0 %}
+                            <i class="fas fa-arrow-up"></i> +{{ stats.evolution_palettes|floatformat:1 }}%
+                        {% elif stats.evolution_palettes < 0 %}
+                            <i class="fas fa-arrow-down"></i> {{ stats.evolution_palettes|floatformat:1 }}%
+                        {% else %}
+                            <i class="fas fa-minus"></i> 0%
+                        {% endif %}
+                        vs hier
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Palettes Conformes - CORRIGÉ -->
+    <div class="col-md-3">
+        <div class="card stats-card text-white" style="background: linear-gradient(135deg, #007bff, #6f42c1);">
+            <div class="card-body text-center">
+                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                <h3 class="mb-0 counter" data-target="{{ stats.total_palettes_conformes|default:0 }}">0</h3>
+                <p class="mb-0">Palettes Conformes</p>
+                <small>Aujourd'hui</small>
+                <div class="mt-2">
+                    <small class="opacity-75">
+                        <i class="fas fa-percentage"></i> {{ stats.taux_conformite_global|floatformat:1 }}% du total
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Palettes Non Conformes - CORRIGÉ -->
+    <div class="col-md-3">
+        <div class="card stats-card text-white" style="background: linear-gradient(135deg, #ffc107, #fd7e14);">
+            <div class="card-body text-center">
+                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                <h3 class="mb-0 counter" data-target="{{ stats.total_palettes_non_conformes|default:0 }}">0</h3>
+                <p class="mb-0">Palettes Non Conformes</p>
+                <small>Aujourd'hui</small>
+                <div class="mt-2">
+                    <small class="opacity-75">
+                        {% if stats.total_palettes_non_conformes > 10 %}
+                            <i class="fas fa-exclamation-circle text-warning"></i> Attention!
+                        {% else %}
+                            <i class="fas fa-check-circle"></i> Normal
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Minutes d'Arrêt -->
+    <div class="col-md-3">
+        <div class="card stats-card text-white" style="background: linear-gradient(135deg, #dc3545, #e83e8c);">
+            <div class="card-body text-center">
+                <i class="fas fa-pause fa-2x mb-2"></i>
+                <h3 class="mb-0 counter" data-target="{{ stats.total_arrets }}">0</h3>
+                <p class="mb-0">Minutes d'Arrêt</p>
+                <small>Aujourd'hui</small>
+                <div class="mt-2">
+                    <small class="opacity-75">
+                        <i class="fas fa-clock"></i> 
+                        {{ stats.total_arrets|floatformat:0 }}min / {{ stats.temps_prevu_total|default:480 }}min
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- KPIs Principaux -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card kpi-card h-100">
+            <div class="card-body text-center">
+                <div class="d-flex justify-content-center align-items-center mb-3">
+                    <i class="fas fa-clock text-primary fa-2x me-3"></i>
+                    <div>
+                        <div class="kpi-value fs-2 fw-bold text-primary counter" data-target="{{ kpis.palettes_par_heure }}" data-decimals="1">0</div>
+                        <div class="kpi-label fw-bold">Palettes/Heure</div>
+                    </div>
+                </div>
+                <small class="text-muted">Productivité moyenne</small>
+                <div class="progress mt-2" style="height: 8px;">
+                    <div class="progress-bar bg-primary" style="width:  widthratio kpis-palettes_par_heure 50 100 "></div>
+                </div>
+                <div class="mt-2">
+                    <span class="badge bg-light text-dark">
+                        Objectif: 45/h
+                        {% if kpis.palettes_par_heure >= 45 %}
+                            <i class="fas fa-check text-success ms-1"></i>
+                        {% else %}
+                            <i class="fas fa-times text-danger ms-1"></i>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card kpi-card h-100">
+            <div class="card-body text-center">
+                <div class="d-flex justify-content-center align-items-center mb-3">
+                    <i class="fas fa-chart-line text-success fa-2x me-3"></i>
+                    <div>
+                        <div class="kpi-value fs-2 fw-bold text-success counter" data-target="{{ kpis.efficacite_globale }}" data-decimals="1">0</div>
+                        <div class="kpi-label fw-bold">Efficacité Globale</div>
+                    </div>
+                </div>
+                <small class="text-muted">Performance générale (OEE)</small>
+                <div class="progress mt-2" style="height: 8px;">
+                    <div class="progress-bar bg-success" style="width:  kpis-efficacite_globale"></div>
+                </div>
+                <div class="mt-2">
+                    <span class="badge bg-light text-dark">
+                        Standard: 80%
+                        {% if kpis.efficacite_globale >= 80 %}
+                            <i class="fas fa-check text-success ms-1"></i>
+                        {% else %}
+                            <i class="fas fa-times text-danger ms-1"></i>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card kpi-card h-100">
+            <div class="card-body text-center">
+                <div class="d-flex justify-content-center align-items-center mb-3">
+                    <i class="fas fa-award text-info fa-2x me-3"></i>
+                    <div>
+                        <div class="kpi-value fs-2 fw-bold text-info counter" data-target="{{ kpis.taux_conformite }}" data-decimals="1">0</div>
+                        <div class="kpi-label fw-bold">Taux de Conformité</div>
+                    </div>
+                </div>
+                <small class="text-muted">Palettes conformes / Total</small>
+                <div class="progress mt-2" style="height: 8px;">
+                    <div class="progress-bar bg-info" style="width: kpis-taux_conformite "></div>
+                </div>
+                <div class="mt-2">
+                    <span class="badge bg-light text-dark">
+                        Objectif: 95%
+                        {% if kpis.taux_conformite >= 95 %}
+                            <i class="fas fa-check text-success ms-1"></i>
+                        {% else %}
+                            <i class="fas fa-times text-danger ms-1"></i>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- KPIs Supplémentaires -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card border-warning h-100">
+            <div class="card-body text-center">
+                <div class="d-flex justify-content-center align-items-center mb-2">
+                    <i class="fas fa-percentage text-warning fa-2x me-3"></i>
+                    <div>
+                        <div class="fs-2 fw-bold text-warning counter" data-target="{{ kpis.taux_productivite }}" data-decimals="1">0</div>
+                        <div class="fw-bold">Taux de Productivité</div>
+                    </div>
+                </div>
+                <small class="text-muted">Par rapport à l'objectif théorique</small>
+                <div class="mt-3">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="text-muted small">Réalisé</div>
+                            <div class="fw-bold">{{ stats.total_palettes }}</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted small">Objectif</div>
+                            <div class="fw-bold">{{ stats.objectif_quotidien|default:200 }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-danger h-100">
+            <div class="card-body text-center">
+                <div class="d-flex justify-content-center align-items-center mb-2">
+                    <i class="fas fa-exclamation-triangle text-danger fa-2x me-3"></i>
+                    <div>
+                        <div class="fs-2 fw-bold text-danger counter" data-target="{{ kpis.taux_defauts }}" data-decimals="2">0</div>
+                        <div class="fw-bold">Taux de Défauts</div>
+                    </div>
+                </div>
+                <small class="text-muted">Déchets/Production totale</small>
+                <div class="mt-3">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="text-muted small">Déchets</div>
+                            <div class="fw-bold">{{ stats.total_dechets|floatformat:1 }} kg</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted small">Limite</div>
+                            <div class="fw-bold">2.5%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Performance par Équipe du Jour -->
+{% if team_productivity %}
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-users-cog"></i> Performance par Équipe (Aujourd'hui)
+            </h5>
+            <span class="badge bg-light text-dark">{{ team_productivity|length }} équipe(s)</span>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for team in team_productivity %}
+            <div class="col-md-4 mb-3">
+                <div class="card border-primary h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0 text-primary">
+                                <i class="fas fa-user-friends"></i>
+                                {{ team.equipe_nom|truncatechars:18 }}
+                            </h6>
+                            <span class="badge bg-info">{{ team.horaire }}</span>
+                        </div>
+                        
+                        <!-- Métriques principales -->
+                        <div class="row text-center mb-3">
+                            <div class="col-4">
+                                <div class="fw-bold text-success fs-5">{{ team.total_palettes }}</div>
+                                <small class="text-muted">Total</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="fw-bold text-primary fs-5">{{ team.total_conformes }}</div>
+                                <small class="text-muted">Conformes</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="fw-bold text-warning fs-5">{{ team.total_non_conformes }}</div>
+                                <small class="text-muted">N.C.</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Indicateurs de performance -->
+                        <div class="row text-center mb-3">
+                            <div class="col-6">
+                                <div class="fw-bold text-info fs-5">{{ team.palettes_par_heure|floatformat:1 }}</div>
+                                <small class="text-muted">P/Heure</small>
+                            </div>
+                            <div class="col-6">
+                                <div class="fw-bold fs-5
+                                    {% if team.taux_conformite >= 95 %}text-success
+                                    {% elif team.taux_conformite >= 90 %}text-warning
+                                    {% else %}text-danger{% endif %}">
+                                    {{ team.taux_conformite|floatformat:1 }}%
+                                </div>
+                                <small class="text-muted">Conformité</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Barre de progression conformité -->
+                        <div class="progress mb-2" style="height: 6px;">
+                            <div class="progress-bar 
+                                {% if team.taux_conformite >= 95 %}bg-success
+                                {% elif team.taux_conformite >= 90 %}bg-warning
+                                {% else %}bg-danger{% endif %}" 
+                                style="width:  team-taux_conformite">
+                            </div>
+                        </div>
+                        
+                        <!-- Informations supplémentaires -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <i class="fas fa-user"></i> {{ team.nombre_operateurs }} op.
+                            </small>
+                            <small class="text-muted">
+                                <i class="fas fa-clock"></i> {{ team.temps_travaille|default:480 }}min
+                            </small>
+                        </div>
+                        
+                        <!-- Badge de performance -->
+                        <div class="text-center mt-2">
+                            {% if team.taux_conformite >= 95 and team.palettes_par_heure >= 45 %}
+                                <span class="badge bg-success"><i class="fas fa-star"></i> Excellence</span>
+                            {% elif team.taux_conformite >= 90 and team.palettes_par_heure >= 40 %}
+                                <span class="badge bg-primary"><i class="fas fa-thumbs-up"></i> Bien</span>
+                            {% else %}
+                                <span class="badge bg-warning"><i class="fas fa-exclamation"></i> À améliorer</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Alertes -->
+ 
+{% if alertes %}
+<div class="card mb-4">
+    <div class="card-header bg-danger text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-exclamation-triangle pulse"></i> 
+                Alertes Actives
+            </h5>
+            <span class="badge bg-light text-dark">{{ alertes|length }}</span>
+        </div>
+    </div>
+    <div class="card-body">
+        {% for alerte in alertes %}
+        <div class="alert alert-danger d-flex justify-content-between align-items-center mb-2">
+            <div class="flex-grow-1">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-
+                        {% if alerte.type_alerte == 'arret' %}pause
+                        {% elif alerte.type_alerte == 'qualite' %}exclamation-triangle
+                        {% elif alerte.type_alerte == 'maintenance' %}wrench
+                        {% elif alerte.type_alerte == 'conformite' %}times-circle
+                        {% else %}bell{% endif %} me-2"></i>
+                    <div>
+                        <strong>{{ alerte.get_type_alerte_display|title }}</strong>
+                        {% if alerte.ligne_production %}
+                            <span class="badge bg-secondary ms-1">L{{ alerte.ligne_production.numero }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <p class="mb-1 mt-2">{{ alerte.message }}</p>
+                <small class="text-muted">
+                    <i class="fas fa-clock"></i> {{ alerte.date_creation|date:"d/m/Y H:i" }}
+                    {% if alerte.operateur %}
+                        • <i class="fas fa-user"></i> {{ alerte.operateur.username }}
+                    {% endif %}
+                </small>
+            </div>
+            <div class="ms-3">
+                <a href="{% url 'resolve_alert' alerte.id %}" class="btn btn-sm btn-outline-success me-1">
+                    <i class="fas fa-check"></i> Résoudre
+                </a>
+                <a href="#" class="btn btn-sm btn-outline-info" data-bs-toggle="tooltip" title="Plus d'infos">
+                    <i class="fas fa-info"></i>
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+        
+        <div class="text-center mt-3">
+            <button class="btn btn-danger" onclick="resolveAllAlerts()">
+                <i class="fas fa-check-double"></i> Résoudre Toutes les Alertes
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Performance par Ligne -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-industry"></i> Performance par Ligne de Production
+            </h5>
+            <div>
+                <span class="badge bg-light text-dark me-2">{{ lignes_stats|length }} ligne(s)</span>
+                <button class="btn btn-sm btn-light" data-bs-toggle="collapse" data-bs-target="#lignesDetails">
+                    <i class="fas fa-eye"></i> Détails
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for ligne_stat in lignes_stats %}
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card border-primary h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-cogs text-primary"></i>
+                                Ligne {{ ligne_stat.ligne.numero }}
+                            </h6>
+                            <span class="badge 
+                                {% if ligne_stat.ligne.statut == 'actif' %}bg-success
+                                {% elif ligne_stat.ligne.statut == 'maintenance' %}bg-warning
+                                {% else %}bg-danger{% endif %}">
+                                {{ ligne_stat.ligne.get_statut_display|default:"Actif" }}
+                            </span>
+                        </div>
+                        
+                        <!-- Métriques de production -->
+                        <div class="row text-center mb-3">
+                            <div class="col-4">
+                                <div class="fw-bold text-success fs-5">{{ ligne_stat.palettes }}</div>
+                                <small class="text-muted">Total</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="fw-bold text-primary fs-5">{{ ligne_stat.palettes_conformes }}</div>
+                                <small class="text-muted">Conformes</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="fw-bold text-warning fs-5">{{ ligne_stat.palettes_non_conformes }}</div>
+                                <small class="text-muted">N.C.</small>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <!-- KPIs de ligne -->
+                        <div class="row text-center mb-3">
+                            <div class="col-6">
+                                <div class="fw-bold text-info fs-5">{{ ligne_stat.palettes_par_heure|floatformat:1 }}</div>
+                                <small class="text-muted">P/Heure</small>
+                            </div>
+                            <div class="col-6">
+                                <div class="fw-bold fs-5
+                                    {% if ligne_stat.taux_conformite >= 95 %}text-success
+                                    {% elif ligne_stat.taux_conformite >= 90 %}text-warning
+                                    {% else %}text-danger{% endif %}">
+                                    {{ ligne_stat.taux_conformite|floatformat:1 }}%
+                                </div>
+                                <small class="text-muted">Conformité</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Barre de progression -->
+                        <div class="progress mb-2" style="height: 6px;">
+                            <div class="progress-bar 
+                                {% if ligne_stat.taux_conformite >= 95 %}bg-success
+                                {% elif ligne_stat.taux_conformite >= 90 %}bg-warning
+                                {% else %}bg-danger{% endif %}" 
+                                style="width:  ligne_stat-taux_conformite">
+                            </div>
+                        </div>
+                        
+                        <!-- Informations supplémentaires -->
+                        <div class="collapse" id="lignesDetails">
+                            <small class="text-muted d-block mb-1">
+                                <i class="fas fa-pause"></i> Arrêts: {{ ligne_stat.total_arrets|default:0 }}min
+                            </small>
+                            <small class="text-muted d-block mb-1">
+                                <i class="fas fa-trash"></i> Déchets: {{ ligne_stat.total_dechets|floatformat:1|default:0 }}kg
+                            </small>
+                            <small class="text-muted d-block">
+                                <i class="fas fa-clock"></i> Dernière activité: {{ ligne_stat.derniere_activite|date:"H:i"|default:"N/A" }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Derniers Enregistrements -->
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-history"></i> Derniers Enregistrements
+            </h5>
+            <div>
+                <span class="badge bg-light text-dark me-2" id="records-count">{{ recent_records|length }}</span>
+                <a href="{% url 'production_history' %}" class="btn btn-sm btn-light">
+                    <i class="fas fa-list"></i> Historique Complet
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if recent_records %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="recent-records-table">
+                    <thead class="table-dark">
+                        <tr>
+                            <th><i class="fas fa-clock"></i> Heure</th>
+                            <th><i class="fas fa-user"></i> Opérateur</th>
+                            <th><i class="fas fa-cogs"></i> Ligne</th>
+                            <th><i class="fas fa-box"></i> Produit</th>
+                            <th><i class="fas fa-pallet"></i> Palettes</th>
+                            <th><i class="fas fa-exclamation-triangle"></i> N.C.</th>
+                            <th><i class="fas fa-percentage"></i> Conformité</th>
+                            <th><i class="fas fa-pause"></i> Arrêts</th>
+                            <th><i class="fas fa-cog"></i> Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in recent_records %}
+                        <tr class="{% if record.date_heure|date:'d' == current_time|date:'d' %}highlight-new{% endif %}
+                                   {% if record.palettes_non_conformes > 0 %}table-warning{% endif %}">
+                            <td>
+                                <span class="fw-bold">{{ record.date_heure|date:"H:i" }}</span>
+                                <br><small class="text-muted">{{ record.date_heure|date:"d/m" }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">
+                                    <i class="fas fa-user"></i> {{ record.operateur.username }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">
+                                    <i class="fas fa-industry"></i> L{{ record.ligne_production.numero }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="text-truncate d-inline-block" style="max-width: 120px;" title="{{ record.produit.nom }}">
+                                    {{ record.produit.nom|truncatechars:18 }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-success fs-6">
+                                    <i class="fas fa-pallet"></i> {{ record.palettes_produites }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                {% if record.palettes_non_conformes > 0 %}
+                                    <span class="badge bg-warning fs-6">
+                                        <i class="fas fa-exclamation-triangle"></i> {{ record.palettes_non_conformes }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-success fs-6">
+                                        <i class="fas fa-check"></i> 0
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <span class="badge fs-6
+                                    {% if record.taux_conformite >= 95 %}bg-success
+                                    {% elif record.taux_conformite >= 90 %}bg-warning
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ record.taux_conformite|floatformat:1 }}%
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                {% if record.duree_arret_minutes > 0 %}
+                                    <span class="badge bg-danger fs-6">
+                                        <i class="fas fa-pause"></i> {{ record.duree_arret_minutes }}min
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-success fs-6">
+                                        <i class="fas fa-play"></i> 0
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group" role="group">
+                                    <button class="btn btn-sm btn-outline-primary" 
+                                            onclick="viewDetails( record.id)" 
+                                            title="Voir détails">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" 
+                                            onclick="editRecord( record.id )" 
+                                            title="Modifier">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination pour les enregistrements -->
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <small class="text-muted">
+                    Affichage de {{ recent_records|length }} enregistrements récents
+                </small>
+                <div>
+                    <button class="btn btn-outline-primary btn-sm" onclick="loadMoreRecords()">
+                        <i class="fas fa-plus"></i> Charger plus
+                    </button>
+                </div>
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-clipboard-list fa-4x text-muted mb-3"></i>
+                <h5 class="text-muted">Aucun enregistrement aujourd'hui</h5>
+                <p class="text-muted">Les données de production apparaîtront ici une fois les relevés effectués.</p>
+                <a href="{ url 'create_production_record' }" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Créer un relevé
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- KPIs Détaillés en Bas -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar"></i> Résumé KPIs Détaillés
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <div class="fs-3 fw-bold text-info counter" data-target="{{ kpis.temps_arret_moyen }}" data-decimals="1">0</div>
+                            <div class="text-muted">Temps Arrêt Moyen (min)</div>
+                            <small class="text-muted">Par session de production</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <div class="fs-3 fw-bold text-success counter" data-target="{{ weekly_kpis.total_palettes|default:0 }}">0</div>
+                            <div class="text-muted">Palettes Semaine</div>
+                            <small class="text-muted">{{ weekly_kpis.periode_debut|date:"d/m"|default:"Lun" }} - {{ weekly_kpis.periode_fin|date:"d/m"|default:"Dim" }}</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <div class="fs-3 fw-bold text-warning counter" data-target="{{ weekly_kpis.total_dechets }}" data-decimals="1">0</div>
+                            <div class="text-muted">Déchets Semaine (kg)</div>
+                            <small class="text-muted">Impact environnemental</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="fs-3 fw-bold text-primary counter" data-target="{{ kpis.nombre_sessions_actives|default:0 }}">0</div>
+                        <div class="text-muted">Sessions Actives</div>
+                        <small class="text-muted">En cours de production</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Comparaison Hebdomadaire et Objectifs -->
+<div class="row mt-4 mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar-week"></i> Performance de la Semaine
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center mb-3">
+                    <div class="col-6">
+                        <div class="fw-bold text-primary fs-2 counter" data-target="{{ weekly_kpis.palettes_par_heure }}" data-decimals="1">0</div>
+                        <small class="text-muted">Palettes/Heure Moyenne</small>
+                    </div>
+                    <div class="col-6">
+                        <div class="fw-bold text-success fs-2 counter" data-target="{{ weekly_kpis.taux_conformite }}" data-decimals="1">0</div>
+                        <small class="text-muted">Conformité Moyenne (%)</small>
+                    </div>
+                </div>
+                
+                <!-- Évolution hebdomadaire -->
+                <hr>
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="text-muted small">Lundi-Mardi</div>
+                        <div class="fw-bold text-info">{{ weekly_kpis.debut_semaine|floatformat:1|default:0 }}%</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-muted small">Mercredi-Jeudi</div>
+                        <div class="fw-bold text-warning">{{ weekly_kpis.milieu_semaine|floatformat:1|default:0 }}%</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-muted small">Vendredi</div>
+                        <div class="fw-bold text-success">{{ weekly_kpis.fin_semaine|floatformat:1|default:0 }}%</div>
+                    </div>
+                </div>
+                
+                <!-- Tendance -->
+                <div class="mt-3 text-center">
+                    {% if weekly_kpis.tendance > 0 %}
+                        <span class="badge bg-success">
+                            <i class="fas fa-arrow-up"></i> Tendance positive (+{{ weekly_kpis.tendance|floatformat:1 }}%)
+                        </span>
+                    {% elif weekly_kpis.tendance < 0 %}
+                        <span class="badge bg-danger">
+                            <i class="fas fa-arrow-down"></i> Tendance négative ({{ weekly_kpis.tendance|floatformat:1 }}%)
+                        </span>
+                    {% else %}
+                        <span class="badge bg-secondary">
+                            <i class="fas fa-minus"></i> Tendance stable
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-target"></i> Objectifs du Jour
+                </h5>
+            </div>
+            <div class="card-body">
+                {% with objectif_palettes=200 objectif_conformite=95 %}
+                <!-- Objectif Palettes -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold">Production de Palettes</span>
+                        <span class="badge bg-primary">{{ stats.total_palettes }}/{{ objectif_palettes }}</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 20px;">
+                        <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" 
+                             style="width: widthratio stats-total_palettes objectif_palettes 100 ">
+                            {% widthratio stats.total_palettes objectif_palettes 100 %}%
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <small class="text-muted">Objectif quotidien</small>
+                        <span class="text-
+                            {% if stats.total_palettes >= objectif_palettes %}success
+                            {% elif stats.total_palettes >= 150 %}warning
+                            {% else %}danger{% endif %}">
+                            {% if stats.total_palettes >= objectif_palettes %}
+                                <i class="fas fa-check-circle"></i> Objectif atteint!
+                            {% elif stats.total_palettes >= 150 %}
+                                <i class="fas fa-clock"></i> En bonne voie
+                            {% else %}
+                                <i class="fas fa-exclamation-triangle"></i> Retard
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Objectif de conformité -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold">Taux de Conformité</span>
+                        <span class="badge bg-info">{{ stats.taux_conformite_global|floatformat:1 }}%/{{ objectif_conformite }}%</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 20px;">
+                        <div class="progress-bar bg-info progress-bar-striped progress-bar-animated" 
+                             style="width: widthratio stats-taux_conformite_global objectif_conformite 100 ">
+                            {{ stats.taux_conformite_global|floatformat:1 }}%
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <small class="text-muted">Standard de qualité</small>
+                        <span class="text-
+                            {% if stats.taux_conformite_global >= objectif_conformite %}success
+                            {% elif stats.taux_conformite_global >= 90 %}warning
+                            {% else %}danger{% endif %}">
+                            {% if stats.taux_conformite_global >= objectif_conformite %}
+                                <i class="fas fa-star"></i> Excellent
+                            {% elif stats.taux_conformite_global >= 90 %}
+                                <i class="fas fa-thumbs-up"></i> Bon
+                            {% else %}
+                                <i class="fas fa-exclamation"></i> À améliorer
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Prévision fin de journée -->
+                <div class="alert alert-light">
+                    <h6 class="mb-2"><i class="fas fa-crystal-ball"></i> Prévision fin de journée:</h6>
+                    {% with heure_actuelle=current_time|date:"H"|add:0 palettes_estimees=stats.total_palettes|floatformat:0|add:0 %}
+                    {% if heure_actuelle > 8 %}
+                        {% with heures_restantes=16|add:heure_actuelle|add:-16 taux_horaire=palettes_estimees|floatformat:0|add:0 %}
+                        <small>
+                            <strong>{{ taux_horaire|add:heures_restantes|floatformat:0 }} palettes</strong>
+                            (basé sur la cadence actuelle)
+                        </small>
+                        {% endwith %}
+                    {% else %}
+                        <small>Données insuffisantes pour la prévision</small>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de détails d'enregistrement -->
+<div class="modal fade" id="recordDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle"></i> Détails de l'Enregistrement
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="recordDetailsContent">
+                <!-- Contenu chargé dynamiquement -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" id="editRecordBtn">
+                    <i class="fas fa-edit"></i> Modifier
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Zone de notifications -->
+<div id="notifications-area" class="position-fixed" style="top: 20px; right: 20px; z-index: 1055; max-width: 350px;">
+    <!-- Notifications dynamiques -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Variables globales
+let updateInterval;
+let recordDetailsModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialisation des modals et tooltips
+    recordDetailsModal = new bootstrap.Modal(document.getElementById('recordDetailsModal'));
+    
+    // Initialiser les tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Animation des compteurs
+    animateCounters();
+    
+    // Mise à jour de l'heure en temps réel
+    updateClock();
+    setInterval(updateClock, 1000);
+    
+    // Démarrer la mise à jour automatique
+    startAutoUpdate();
+    
+    // Gestionnaires d'événements
+    setupEventHandlers();
+});
+
+// Animation des compteurs
+function animateCounters() {
+    const counters = document.querySelectorAll('.counter');
+    
+    counters.forEach(counter => {
+        const target = parseFloat(counter.dataset.target) || 0;
+        const decimals = parseInt(counter.dataset.decimals) || 0;
+        const duration = 2000; // 2 secondes
+        const increment = target / (duration / 16); // 60 FPS
+        
+        let current = 0;
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= target) {
+                current = target;
+                clearInterval(timer);
+            }
+            counter.textContent = current.toFixed(decimals);
+        }, 16);
+    });
+}
+
+// Mise à jour de l'heure
+function updateClock() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('fr-FR');
+    const clockElement = document.getElementById('current-time');
+    if (clockElement) {
+        clockElement.textContent = timeString;
+    }
+}
+
+// Démarrage de la mise à jour automatique
+function startAutoUpdate() {
+    updateInterval = setInterval(() => {
+        updateProductionData();
+    }, 30000); // Toutes les 30 secondes
+    
+    // Actualisation complète toutes les 5 minutes
+    setInterval(() => {
+        location.reload();
+    }, 300000);
+}
+
+// Mise à jour des données de production
+function updateProductionData() {
+    fetch("{% url 'api_production_data' %}")
+
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Erreur réseau');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Données mises à jour:', data);
+        
+        // Mettre à jour les statistiques principales
+        updateStatsCards(data);
+        
+        // Mettre à jour l'indicateur de statut
+        updateStatusIndicator(data);
+        
+        // Vérifier les nouvelles alertes
+        checkForNewAlerts(data.alertes);
+        
+        // Mettre à jour le timestamp
+        document.getElementById('last-update').textContent = new Date().toLocaleTimeString('fr-FR');
+        
+        showNotification('Données mises à jour', 'success');
+    })
+    .catch(error => {
+        console.error('Erreur mise à jour:', error);
+        showNotification('Erreur de mise à jour: ' + error.message, 'danger');
+        
+        // Changer le statut en erreur
+        const statusIndicator = document.getElementById('status-indicator');
+        if (statusIndicator) {
+            statusIndicator.className = 'alert alert-danger border-0 mb-4';
+            statusIndicator.querySelector('i').className = 'fas fa-circle text-danger me-2';
+            statusIndicator.querySelector('strong').textContent = 'Erreur de Connexion';
+        }
+    });
+}
+
+// Mise à jour des cartes de statistiques
+function updateStatsCards(data) {
+    const updates = [
+        { selector: '.stats-card.bg-gradient h3:first-of-type', value: data.total_palettes },
+        { selector: '.stats-card.bg-gradient:nth-child(2) h3', value: data.total_palettes_conformes },
+        { selector: '.stats-card.bg-gradient:nth-child(3) h3', value: data.total_palettes_non_conformes },
+        { selector: '.stats-card.bg-gradient:nth-child(4) h3', value: data.total_arrets }
+    ];
+    
+    updates.forEach(update => {
+        const element = document.querySelector(update.selector);
+        if (element && update.value !== undefined) {
+            // Animation de mise à jour
+            element.style.transform = 'scale(1.1)';
+            element.textContent = update.value;
+            setTimeout(() => {
+                element.style.transform = 'scale(1)';
+            }, 200);
+        }
+    });
+}
+
+// Mise à jour de l'indicateur de statut
+function updateStatusIndicator(data) {
+    const statusIndicator = document.getElementById('status-indicator');
+    if (statusIndicator) {
+        const isHealthy = data.system_healthy !== false;
+        
+        statusIndicator.className = `alert ${isHealthy ? 'alert-light' : 'alert-warning'} border-0 mb-4`;
+        const icon = statusIndicator.querySelector('i');
+        const statusText = statusIndicator.querySelector('strong');
+        
+        if (isHealthy) {
+            icon.className = 'fas fa-circle text-success me-2';
+            statusText.textContent = 'Système en Fonctionnement';
+        } else {
+            icon.className = 'fas fa-circle text-warning me-2';
+            statusText.textContent = 'Attention Requise';
+        }
+    }
+}
+
+// Vérification des nouvelles alertes
+function checkForNewAlerts(alertes) {
+    if (alertes && alertes.length > 0) {
+        // Vérifier s'il y a de nouvelles alertes non vues
+        const currentAlertIds = Array.from(document.querySelectorAll('[data-alert-id]'))
+            .map(el => el.dataset.alertId);
+        
+        const newAlerts = alertes.filter(alert => !currentAlertIds.includes(alert.id.toString()));
+        
+        newAlerts.forEach(alert => {
+            showNotification(
+                `Nouvelle alerte: ${alert.message}`,
+                'warning',
+                5000
+            );
+            
+            // Son d'alerte (optionnel)
+            playAlertSound();
+        });
+    }
+}
+
+// Affichage des notifications
+function showNotification(message, type = 'info', duration = 3000) {
+    const notificationsArea = document.getElementById('notifications-area');
+    
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show mb-2`;
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    notificationsArea.appendChild(notification);
+    
+    // Auto-suppression
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, duration);
+}
+
+// Son d'alerte
+function playAlertSound() {
+    try {
+        const audio = new Audio('{% static "production/sounds/alert.mp3" %}');
+        audio.volume = 0.3;
+        audio.play().catch(e => console.log('Son désactivé:', e));
+    } catch (e) {
+        console.log('Son non disponible:', e);
+    }
+}
+
+// Gestionnaires d'événements
+function setupEventHandlers() {
+    // Bouton de rafraîchissement
+    const refreshBtn = document.getElementById('refresh-data');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            updateProductionData();
+        });
+    }
+    
+    // Résolution de toutes les alertes
+    window.resolveAllAlerts = function() {
+        if (confirm('Êtes-vous sûr de vouloir résoudre toutes les alertes?')) {
+            fetch('/api/resolve-all-alerts/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    showNotification('Erreur lors de la résolution des alertes', 'danger');
+                }
+            })
+            .catch(error => {
+                showNotification('Erreur: ' + error.message, 'danger');
+            });
+        }
+    };
+    
+    // Chargement de plus d'enregistrements
+    window.loadMoreRecords = function() {
+        const table = document.getElementById('recent-records-table');
+        const currentCount = table.querySelectorAll('tbody tr').length;
+        
+        fetch(`/api/production-records/?offset=${currentCount}&limit=10`)
+            .then(response => response.json())
+            .then(data => {
+                // Ajouter les nouveaux enregistrements au tableau
+                // (implémentation simplifiée)
+                showNotification('Enregistrements supplémentaires chargés', 'success');
+            })
+            .catch(error => {
+                showNotification('Erreur de chargement: ' + error.message, 'danger');
+            });
+    };
+}
+
+// Voir les détails d'un enregistrement
+function viewDetails(recordId) {
+    fetch(`/api/production-record/${recordId}/`)
+        .then(response => response.json())
+        .then(data => {
+            const content = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-primary">Informations Générales</h6>
+                        <table class="table table-sm">
+                            <tr><th>Date/Heure:</th><td>${data.date_heure}</td></tr>
+                            <tr><th>Opérateur:</th><td>${data.operateur}</td></tr>
+                            <tr><th>Ligne:</th><td>Ligne ${data.ligne}</td></tr>
+                            <tr><th>Produit:</th><td>${data.produit}</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-success">Production</h6>
+                        <table class="table table-sm">
+                            <tr><th>Palettes produites:</th><td><strong>${data.palettes_produites}</strong></td></tr>
+                            <tr><th>Non conformes:</th><td class="text-warning"><strong>${data.palettes_non_conformes}</strong></td></tr>
+                            <tr><th>Taux conformité:</th><td class="text-info"><strong>${data.taux_conformite}%</strong></td></tr>
+                            <tr><th>Déchets:</th><td>${data.dechets} kg</td></tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h6 class="text-warning">Arrêts et Commentaires</h6>
+                        <p><strong>Durée d'arrêt:</strong> ${data.duree_arret} minutes</p>
+                        ${data.cause_arret ? `<p><strong>Cause:</strong> ${data.cause_arret}</p>` : ''}
+                        ${data.commentaires ? `<p><strong>Commentaires:</strong> ${data.commentaires}</p>` : '<p class="text-muted">Aucun commentaire</p>'}
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('recordDetailsContent').innerHTML = content;
+            document.getElementById('editRecordBtn').onclick = () => editRecord(recordId);
+            recordDetailsModal.show();
+        })
+        .catch(error => {
+            showNotification('Erreur lors du chargement des détails: ' + error.message, 'danger');
+        });
+}
+
+// Modifier un enregistrement
+function editRecord(recordId) {
+    window.location.href = `/production/edit/${recordId}/`;
+}
+
+// Nettoyage lors du déchargement de la page
+window.addEventListener('beforeunload', function() {
+    if (updateInterval) {
+        clearInterval(updateInterval);
+    }
+});
+
+// Gestion des erreurs globales
+window.addEventListener('error', function(e) {
+    console.error('Erreur JavaScript:', e.error);
+    showNotification('Une erreur inattendue s\'est produite', 'danger');
+});
+
+// Alertes pour les problèmes de performance
+
+ if  (alertes ) {
+console.warn('{{ alertes|length }} alerte(s) active(s) détectée(s)!');}
+
+
+// Animation d'entrée pour les éléments
+const observerOptions = {
+    threshold: 0.1,
+    rootMargin: '0px 0px -50px 0px'
+};
+
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.style.animation = 'fadeInUp 0.6s ease-out';
+        }
+    });
+}, observerOptions);
+
+// Observer les cartes
+document.querySelectorAll('.card').forEach(card => {
+    observer.observe(card);
+});
+
+// Ajouter les styles d'animation CSS
+const animationStyles = `
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+    
+    @keyframes highlight {
+        0% { background-color: rgba(40, 167, 69, 0.3); }
+        50% { background-color: rgba(40, 167, 69, 0.1); }
+        100% { background-color: transparent; }
+    }
+    
+    .stats-card {
+        transition: all 0.3s ease;
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    
+    .kpi-card {
+        transition: all 0.3s ease;
+    }
+    
+    .kpi-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    }
+    
+    .pulse {
+        animation: pulse 2s infinite;
+    }
+    
+    .highlight-new {
+        animation: highlight 3s ease-in-out;
+    }
+    
+    .table tbody tr {
+        transition: all 0.2s ease;
+    }
+    
+    .table tbody tr:hover {
+        background-color: rgba(0,123,255,0.05);
+        transform: translateX(2px);
+    }
+    
+    .progress-bar {
+        transition: width 1s ease-in-out;
+    }
+    
+    .counter {
+        transition: all 0.3s ease;
+    }
+    
+    .badge {
+        transition: all 0.2s ease;
+    }
+    
+    .badge:hover {
+        transform: scale(1.05);
+    }
+    
+    .alert-notification {
+        animation: slideInRight 0.3s ease-out;
+    }
+    
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(100px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    .btn {
+        transition: all 0.2s ease;
+    }
+    
+    .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .card-header {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .card-header::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+        transition: left 0.5s;
+    }
+    
+    .card:hover .card-header::after {
+        left: 100%;
+    }
+`;
+
+// Injecter les styles
+const styleSheet = document.createElement('style');
+styleSheet.textContent = animationStyles;
+document.head.appendChild(styleSheet);
+
+// Fonction de diagnostic système
+function runSystemDiagnostic() {
+    const diagnosticResults = {
+        timestamp: new Date().toISOString(),
+        browser: navigator.userAgent,
+        connection: navigator.onLine ? 'En ligne' : 'Hors ligne',
+        performance: performance.now(),
+        memoryUsage: performance.memory ? performance.memory.usedJSHeapSize : 'Non disponible',
+        activeElements: document.querySelectorAll('.stats-card, .kpi-card').length,
+        updateInterval: updateInterval ? 'Actif' : 'Inactif'
+    };
+    
+    console.group('🔧 Diagnostic Système - Le Petit Paris');
+    console.table(diagnosticResults);
+    console.groupEnd();
+    
+    return diagnosticResults;
+}
+
+// Fonction de test des connexions API
+function testApiConnections() {
+    const apiEndpoints = [
+        '/api/production-data/',
+        '/api/production-records/',
+        '/api/system-health/'
+    ];
+    
+    console.group('🌐 Test des Connexions API');
+    
+    apiEndpoints.forEach(endpoint => {
+        fetch(endpoint, { method: 'HEAD' })
+            .then(response => {
+                console.log(`✅ ${endpoint}: ${response.status} ${response.statusText}`);
+            })
+            .catch(error => {
+                console.error(`❌ ${endpoint}: ${error.message}`);
+            });
+    });
+    
+    console.groupEnd();
+}
+
+// Fonction d'export des données visibles
+function exportCurrentData() {
+    const data = {
+        timestamp: new Date().toISOString(),
+        stats: {
+            total_palettes: document.querySelector('.stats-card h3')?.textContent || '0',
+            conformite: document.querySelector('.kpi-value')?.textContent || '0%',
+            efficacite: document.querySelectorAll('.kpi-value')[1]?.textContent || '0%'
+        },
+        alerts_count: document.querySelectorAll('.alert-danger').length,
+        active_lines: document.querySelectorAll('.card.border-primary').length
+    };
+    
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dashboard-data-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    
+    URL.revokeObjectURL(url);
+    showNotification('Données exportées avec succès', 'success');
+}
+
+// Raccourcis clavier pour les administrateurs
+document.addEventListener('keydown', function(e) {
+    // Ctrl + R : Rafraîchir les données
+    if (e.ctrlKey && e.key === 'r') {
+        e.preventDefault();
+        updateProductionData();
+        showNotification('Actualisation manuelle déclenchée', 'info');
+    }
+    
+    // Ctrl + D : Diagnostic système
+    if (e.ctrlKey && e.key === 'd') {
+        e.preventDefault();
+        runSystemDiagnostic();
+        testApiConnections();
+    }
+    
+    // Ctrl + E : Export des données
+    if (e.ctrlKey && e.key === 'e') {
+        e.preventDefault();
+        exportCurrentData();
+    }
+    
+    // Échap : Fermer toutes les modales
+    if (e.key === 'Escape') {
+        const modals = document.querySelectorAll('.modal.show');
+        modals.forEach(modal => {
+            const modalInstance = bootstrap.Modal.getInstance(modal);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+        });
+    }
+});
+
+// Gestion du mode sombre (si implémenté)
+function toggleDarkMode() {
+    document.body.classList.toggle('dark-mode');
+    localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+    showNotification('Mode sombre ' + (document.body.classList.contains('dark-mode') ? 'activé' : 'désactivé'), 'info');
+}
+
+// Restaurer le mode sombre au chargement
+if (localStorage.getItem('darkMode') === 'true') {
+    document.body.classList.add('dark-mode');
+}
+
+// Fonction de monitoring des performances
+function monitorPerformance() {
+    const perfData = {
+        loadTime: performance.timing.loadEventEnd - performance.timing.navigationStart,
+        domReady: performance.timing.domContentLoadedEventEnd - performance.timing.navigationStart,
+        resources: performance.getEntriesByType('resource').length,
+        memory: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' MB' : 'N/A'
+    };
+    
+    if (perfData.loadTime > 3000) {
+        console.warn('⚠️ Temps de chargement élevé:', perfData.loadTime + 'ms');
+    }
+    
+    return perfData;
+}
+
+// Surveillance de la connectivité
+window.addEventListener('online', function() {
+    showNotification('Connexion rétablie', 'success');
+    updateProductionData();
+});
+
+window.addEventListener('offline', function() {
+    showNotification('Connexion perdue - Mode hors ligne activé', 'warning');
+});
+
+// Gestion des erreurs de fetch
+function handleFetchError(error, context = '') {
+    console.error(`Erreur ${context}:`, error);
+    
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        showNotification('Problème de connexion réseau', 'danger');
+    } else if (error.name === 'SyntaxError') {
+        showNotification('Erreur de format des données reçues', 'danger');
+    } else {
+        showNotification(`Erreur: ${error.message}`, 'danger');
+    }
+}
+
+// Initialisation finale
+console.log('🍅 Tableau de Bord Le Petit Paris - Initialisé avec succès');
+console.log('📊 Utilisez Ctrl+D pour le diagnostic système');
+console.log('🔄 Mise à jour automatique toutes les 30 secondes');
+console.log('⌨️ Raccourcis: Ctrl+R (actualiser), Ctrl+E (exporter), Ctrl+D (diagnostic)');
+
+// Monitoring initial
+monitorPerformance();
+
+// Message de bienvenue pour les nouveaux utilisateurs
+if (!localStorage.getItem('dashboardVisited')) {
+    setTimeout(() => {
+        showNotification('Bienvenue sur le tableau de bord Le Petit Paris! 🍅', 'success', 5000);
+        localStorage.setItem('dashboardVisited', 'true');
+
+
+    }, 1000);
+    
+}
+
+
+
+</script>
+{% endblock %} 

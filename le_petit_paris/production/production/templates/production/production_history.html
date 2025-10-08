@@ -1,0 +1,399 @@
+{% extends 'production/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-history"></i> Historique de Production</h1>
+    <div>
+        <a href="{% url 'admin_dashboard' %}" class="btn btn-danger">
+            <i class="fas fa-tachometer-alt"></i> Tableau de Bord
+        </a>
+    </div>
+</div>
+
+<!-- Filtres -->
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h5><i class="fas fa-filter"></i> Filtres</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label for="date_debut" class="form-label">Date début</label>
+                <input type="date" class="form-control" name="date_debut" id="date_debut" value="{{ request.GET.date_debut }}">
+            </div>
+            <div class="col-md-3">
+                <label for="date_fin" class="form-label">Date fin</label>
+                <input type="date" class="form-control" name="date_fin" id="date_fin" value="{{ request.GET.date_fin }}">
+            </div>
+            <div class="col-md-3">
+                <label for="operateur" class="form-label">Opérateur</label>
+                <select class="form-select" name="operateur" id="operateur">
+                    <option value="">Tous les opérateurs</option>
+                    {% for op in operateurs %}
+                        <option value="{{ op.id }}" {% if request.GET.operateur == op.id|stringformat:'s' %}selected{% endif %}>
+                            {{ op.username }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="ligne" class="form-label">Ligne</label>
+                <select class="form-select" name="ligne" id="ligne">
+                    <option value="">Toutes les lignes</option>
+                    {% for ligne in lignes %}
+                        <option value="{{ ligne.id }}" {% if request.GET.ligne == ligne.id|stringformat:'s' %}selected{% endif %}>
+                            Ligne {{ ligne.numero }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search"></i> Filtrer
+                </button>
+                <a href="{% url 'production_history' %}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Réinitialiser
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Statistiques du jour -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0"><i class="fas fa-calendar-day"></i> Statistiques d'Aujourd'hui</h5>
+    <small class="text-muted">{{ today|date:"d/m/Y" }}</small>
+</div>
+
+<div class="row mb-4 g-3">
+    <div class="col-md-3 d-flex">
+        <div class="card bg-success text-white flex-fill">
+            <div class="card-body text-center">
+                <h3>{{ today_stats.total_palettes|default:0 }}</h3>
+                <p class="mb-0">Total Palettes</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 d-flex">
+        <div class="card text-white flex-fill" style="background: linear-gradient(135deg, #007bff, #6f42c1);">
+            <div class="card-body text-center">
+                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                <h3 class="mb-0 counter">{{ today_stats.total_palettes_conformes|default:0 }}</h3>
+                <p class="mb-0">Palettes Conformes</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 d-flex">
+        <div class="card text-white flex-fill" style="background: linear-gradient(135deg, #ffc107, #fd7e14);">
+            <div class="card-body text-center">
+                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                <h3 class="mb-0 counter">{{ today_stats.total_palettes_non_conformes|default:0 }}</h3>
+                <p class="mb-0">Palettes Non Conformes</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 d-flex">
+        <div class="card bg-warning text-white flex-fill">
+            <div class="card-body text-center">
+                <h3>{{ today_stats.total_dechets|floatformat:1|default:0 }}</h3>
+                <p class="mb-0">Total Déchets (boîtes)</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tableau des enregistrements avec colonne déchets -->
+<div class="card">
+    <div class="card-header bg-danger text-white">
+        <h5><i class="fas fa-table"></i> Enregistrements de Production</h5>
+    </div>
+    <div class="card-body">
+        {% if records %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th><i class="fas fa-clock"></i> Date/Heure</th>
+                            <th><i class="fas fa-user"></i> Opérateur</th>
+                            <th><i class="fas fa-industry"></i> Ligne</th>
+                            <th><i class="fas fa-box"></i> Produit</th>
+                            <th><i class="fas fa-layer-group"></i> Palettes</th>
+                            <th><i class="fas fa-exclamation-triangle"></i> N.C.</th>
+                            <th><i class="fas fa-trash"></i> Déchets (boîtes)</th>
+                            <th><i class="fas fa-list-alt"></i> Cause NC</th>
+                            <th><i class="fas fa-cubes"></i> Fardeaux Récup.</th>
+                            <th><i class="fas fa-percent"></i> Conformité</th>
+                            <th><i class="fas fa-stop-circle"></i> Arrêts</th>
+                            <th><i class="fas fa-clipboard-list"></i> Cause Arrêt</th>
+                            <th><i class="fas fa-cogs"></i> Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in records %}
+                        <tr>
+                            <td>
+                                <div class="fw-bold">{{ record.date_heure|date:"d/m/Y" }}</div>
+                                <small class="text-muted">{{ record.date_heure|date:"H:i" }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">{{ record.operateur.username }}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">L{{ record.ligne_production.numero }}</span>
+                            </td>
+                            <td>{{ record.produit.nom|truncatechars:15 }}</td>
+                            <td>
+                                <span class="badge bg-success fs-6">{{ record.palettes_produites }}</span>
+                            </td>
+                            <td>
+                                {% if record.palettes_non_conformes > 0 %}
+                                    <span class="badge bg-warning fs-6">{{ record.palettes_non_conformes }}</span>
+                                {% else %}
+                                    <span class="badge bg-success">0</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.dechets_boites > 0 %}
+                                    <span class="badge bg-danger fs-6">{{ record.dechets_boites }}</span>
+                                {% else %}
+                                    <span class="badge bg-success">0</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.cause_non_conformite %}
+                                    <span class="badge bg-secondary" title="{{ record.cause_non_conformite }}">
+                                        {{ record.cause_non_conformite|truncatechars:15 }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.fardeaux_recuperes %}
+                                    <span class="badge bg-info fs-6">{{ record.fardeaux_recuperes }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.taux_conformite >= 90 %}
+                                    <span class="badge bg-success">{{ record.taux_conformite|floatformat:1 }}%</span>
+                                {% elif record.taux_conformite >= 75 %}
+                                    <span class="badge bg-warning">{{ record.taux_conformite|floatformat:1 }}%</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ record.taux_conformite|floatformat:1 }}%</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.temps_arret > 0 %}
+                                    <span class="badge bg-danger">{{ record.temps_arret }}min</span>
+                                {% else %}
+                                    <span class="badge bg-success">0</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.cause_arret %}
+                                    <span class="badge bg-danger" title="{{ record.cause_arret }}">
+                                        {{ record.cause_arret|truncatechars:15 }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" title="Voir détails">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    
+                                    {% if record.palettes_non_conformes > 0 and user.is_staff %}
+                                        {% if record.statut_palette_nc == 'en_attente' %}
+                                            <button type="button" 
+                                                    class="btn btn-warning btn-sm pulse-btn" 
+                                                    onclick="openPaletteNCModal({{ record.id }})"
+                                                    title="Traiter {{ record.palettes_non_conformes }} palette(s) non conforme(s)">
+                                                <i class="fas fa-exclamation-triangle"></i>
+                                                <span class="badge bg-light text-dark">{{ record.palettes_non_conformes }}</span>
+                                            </button>
+                                        {% elif record.statut_palette_nc == 'traitee' %}
+                                            <button type="button" 
+                                                    class="btn btn-success btn-sm" 
+                                                    title="NC traitées"
+                                                    disabled>
+                                                <i class="fas fa-check-circle"></i>
+                                            </button>
+                                        {% elif record.statut_palette_nc == 'rejetee' %}
+                                            <button type="button" 
+                                                    class="btn btn-danger btn-sm" 
+                                                    title="NC confirmées"
+                                                    disabled>
+                                                <i class="fas fa-times-circle"></i>
+                                            </button>
+                                        {% elif record.statut_palette_nc == 'partiel' %}
+                                            <button type="button" 
+                                                    class="btn btn-info btn-sm" 
+                                                    onclick="openPaletteNCModal({{ record.id }})"
+                                                    title="Traitement partiel - {{ record.palettes_non_conformes }} restant(s)">
+                                                <i class="fas fa-balance-scale"></i>
+                                                <span class="badge bg-light text-dark">{{ record.palettes_non_conformes }}</span>
+                                            </button>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if records.has_other_pages %}
+                <nav aria-label="Navigation historique">
+                    <ul class="pagination justify-content-center">
+                        {% if records.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?{% if request.GET.date_debut %}date_debut={{ request.GET.date_debut }}&{% endif %}{% if request.GET.date_fin %}date_fin={{ request.GET.date_fin }}&{% endif %}{% if request.GET.operateur %}operateur={{ request.GET.operateur }}&{% endif %}{% if request.GET.ligne %}ligne={{ request.GET.ligne }}&{% endif %}page={{ records.previous_page_number }}">
+                                    <i class="fas fa-chevron-left"></i> Précédent
+                                </a>
+                            </li>
+                        {% endif %}
+
+                        {% for page_num in records.paginator.page_range %}
+                            {% if page_num == records.number %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                            {% elif page_num > records.number|add:'-3' and page_num < records.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% if request.GET.date_debut %}date_debut={{ request.GET.date_debut }}&{% endif %}{% if request.GET.date_fin %}date_fin={{ request.GET.date_fin }}&{% endif %}{% if request.GET.operateur %}operateur={{ request.GET.operateur }}&{% endif %}{% if request.GET.ligne %}ligne={{ request.GET.ligne }}&{% endif %}page={{ page_num }}">{{ page_num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if records.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?{% if request.GET.date_debut %}date_debut={{ request.GET.date_debut }}&{% endif %}{% if request.GET.date_fin %}date_fin={{ request.GET.date_fin }}&{% endif %}{% if request.GET.operateur %}operateur={{ request.GET.operateur }}&{% endif %}{% if request.GET.ligne %}ligne={{ request.GET.ligne }}&{% endif %}page={{ records.next_page_number }}">
+                                    Suivant <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-clipboard-list fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">Aucun enregistrement trouvé</h4>
+                <p class="text-muted">Aucun enregistrement ne correspond à vos critères de recherche.</p>
+                <a href="{% url 'add_production_record' %}" class="btn btn-success">
+                    <i class="fas fa-plus"></i> Ajouter un relevé
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Export -->
+<div class="mt-4 text-center">
+    <div class="btn-group">
+        <a href="?{% if request.GET.date_debut %}date_debut={{ request.GET.date_debut }}&{% endif %}{% if request.GET.date_fin %}date_fin={{ request.GET.date_fin }}&{% endif %}{% if request.GET.operateur %}operateur={{ request.GET.operateur }}&{% endif %}{% if request.GET.ligne %}ligne={{ request.GET.ligne }}&{% endif %}export=csv" class="btn btn-outline-success">
+            <i class="fas fa-file-csv"></i> Exporter CSV
+        </a>
+        <a href="?{% if request.GET.date_debut %}date_debut={{ request.GET.date_debut }}&{% endif %}{% if request.GET.date_fin %}date_fin={{ request.GET.date_fin }}&{% endif %}{% if request.GET.operateur %}operateur={{ request.GET.operateur }}&{% endif %}{% if request.GET.ligne %}ligne={{ request.GET.ligne }}&{% endif %}export=excel" class="btn btn-outline-primary">
+            <i class="fas fa-file-excel"></i> Exporter Excel
+        </a>
+    </div>
+</div>
+
+<!-- Inclusion du modal de traitement NC -->
+{% include 'production/palette_nc_modal.html' %}
+
+{% endblock %}
+
+{% block styles %}
+<style>
+/* Animations et styles personnalisés */
+.pulse-btn {
+    animation: pulse-warning 2s infinite;
+}
+
+@keyframes pulse-warning {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 8px rgba(255, 193, 7, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+    }
+}
+
+.badge.fs-6 {
+    font-size: 0.9em !important;
+}
+
+.counter {
+    animation: countUp 0.8s ease-out;
+}
+
+@keyframes countUp {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.table th {
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.table td {
+    vertical-align: middle;
+    font-size: 0.85rem;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(0,123,255,0.05);
+}
+
+@media (max-width: 1200px) {
+    .table-responsive {
+        font-size: 0.75rem;
+    }
+    
+    .table th, .table td {
+        padding: 0.5rem 0.25rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'production/js/palette_nc_modal.js' %}"></script>
+<script>
+// Auto-submit des filtres
+document.addEventListener('DOMContentLoaded', function() {
+    const filterForm = document.querySelector('form[method="get"]');
+    if (filterForm) {
+        const selectElements = filterForm.querySelectorAll('select');
+        const dateElements = filterForm.querySelectorAll('input[type="date"]');
+        
+        [...selectElements, ...dateElements].forEach(element => {
+            element.addEventListener('change', function() {
+                filterForm.submit();
+            });
+        });
+    }
+});
+</script>
+{% endblock %}
